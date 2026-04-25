@@ -2,6 +2,7 @@ import type { RNG } from './rng';
 import type { Bracket, GameState, League, Series, SeedEntry } from './types';
 import { FRANCHISES } from './franchises';
 import { simGame } from './sim';
+import { recordGameStats } from './perGameStats';
 
 export function seedBracket(state: GameState): Bracket {
   const leagueSeeds: Record<League, SeedEntry[]> = { AL: [], NL: [] };
@@ -101,8 +102,11 @@ export function simSeriesGame(state: GameState, series: Series, rng: RNG): Serie
   else homeFid = series.higherSeed.id;
   const awayFid = homeFid === series.higherSeed.id ? series.lowerSeed.id : series.higherSeed.id;
 
-  const fakeGame = { id: `${series.id}_g${gameNum}`, day: state.day, home: homeFid, away: awayFid, played: false };
+  const fakeGame: any = { id: `${series.id}_g${gameNum}`, day: state.day, home: homeFid, away: awayFid, played: false };
   const result = simGame(rng, state, fakeGame);
+  fakeGame.played = true;
+  fakeGame.result = result;
+  recordGameStats(state, fakeGame, rng);
 
   const fin = state.finances[homeFid];
   fin.ledger.postseasonRev = (fin.ledger.postseasonRev || 0) + Math.round(result.attendance * (fin.premiumPrice * 0.3 + fin.ticketPrice * 1.8));

@@ -24,6 +24,7 @@ const PAGES: { id: Page; label: string }[] = [
   { id: 'stadium', label: 'Stadium' },
   { id: 'news', label: 'News' },
   { id: 'awards', label: 'Awards' },
+  { id: 'leaderboards', label: 'Leaders' },
   { id: 'history', label: 'History' },
   { id: 'settings', label: 'Settings' },
 ];

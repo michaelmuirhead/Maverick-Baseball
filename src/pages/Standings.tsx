@@ -1,6 +1,7 @@
 import { S, COLORS } from '../styles/tokens';
 import { useGame } from '../state/store';
 import { FRANCHISES } from '../engine/franchises';
+import { pythagoreanWins, magicNumber, playoffOdds } from '../engine/playoffOdds';
 
 export function Standings() {
   const { state } = useGame();
@@ -21,7 +22,7 @@ export function Standings() {
     <div>
       <div style={S.sectionRule}>
         <h2 style={S.sectionHead}>Standings</h2>
-        <div style={S.sectionSub}>{state.season} season · day {state.day}</div>
+        <div style={S.sectionSub}>{state.season} season - day {state.day}</div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
         {Object.entries(groups).map(([div, fids]) => {
@@ -37,6 +38,9 @@ export function Standings() {
                     <th style={{ ...S.th, ...S.thNum }}>L</th>
                     <th style={{ ...S.th, ...S.thNum }}>PCT</th>
                     <th style={{ ...S.th, ...S.thNum }}>GB</th>
+                    <th style={{ ...S.th, ...S.thNum }} title="Pythagorean expected wins">Pyth</th>
+                    <th style={{ ...S.th, ...S.thNum }} title="Magic number to clinch division">M#</th>
+                    <th style={{ ...S.th, ...S.thNum }} title="Playoff odds">PO%</th>
                     <th style={{ ...S.th, ...S.thNum }}>RD</th>
                     <th style={{ ...S.th, ...S.thNum }}>L10</th>
                     <th style={{ ...S.th, ...S.thNum }}>Strk</th>
@@ -51,6 +55,9 @@ export function Standings() {
                     const gb = leaderWins - s.wins;
                     const wins10 = s.l10.filter((x) => x === 'W').length;
                     const isUser = fid === state.userFranchiseId;
+                    const pyth = pythagoreanWins(s.rf, s.ra, games);
+                    const m = magicNumber(state, fid);
+                    const odds = playoffOdds(state, fid);
                     return (
                       <tr key={fid} style={{ background: isUser ? '#f8f2e4' : 'transparent' }}>
                         <td style={{ ...S.td, fontWeight: isUser ? 600 : 400 }}>
@@ -60,13 +67,20 @@ export function Standings() {
                         <td style={{ ...S.td, ...S.tdNum }}>{s.wins}</td>
                         <td style={{ ...S.td, ...S.tdNum }}>{s.losses}</td>
                         <td style={{ ...S.td, ...S.tdNum }}>{pct}</td>
-                        <td style={{ ...S.td, ...S.tdNum }}>{gb === 0 ? '—' : gb}</td>
+                        <td style={{ ...S.td, ...S.tdNum }}>{gb === 0 ? '-' : gb}</td>
+                        <td style={{ ...S.td, ...S.tdNum, color: COLORS.inkDim }}>{pyth}</td>
+                        <td style={{ ...S.td, ...S.tdNum, color: m === 0 ? COLORS.green : COLORS.inkDim, fontWeight: m === 0 ? 700 : 400 }}>
+                          {m === null ? '-' : m === 0 ? 'CLNCHD' : m}
+                        </td>
+                        <td style={{ ...S.td, ...S.tdNum, color: odds >= 70 ? COLORS.green : odds >= 30 ? COLORS.gold : COLORS.red }}>
+                          {odds}
+                        </td>
                         <td style={{ ...S.td, ...S.tdNum, color: s.rf - s.ra >= 0 ? COLORS.green : COLORS.red }}>
                           {s.rf - s.ra >= 0 ? '+' : ''}{s.rf - s.ra}
                         </td>
-                        <td style={{ ...S.td, ...S.tdNum }}>{wins10}–{s.l10.length - wins10}</td>
+                        <td style={{ ...S.td, ...S.tdNum }}>{wins10}-{s.l10.length - wins10}</td>
                         <td style={{ ...S.td, ...S.tdNum }}>
-                          {s.streak === 0 ? '—' : `${s.streak > 0 ? 'W' : 'L'}${Math.abs(s.streak)}`}
+                          {s.streak === 0 ? '-' : `${s.streak > 0 ? 'W' : 'L'}${Math.abs(s.streak)}`}
                         </td>
                       </tr>
                     );

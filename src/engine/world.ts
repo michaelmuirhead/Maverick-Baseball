@@ -33,6 +33,9 @@ import {
 } from './minors';
 import { startSpringTraining, executeCuts, ST_OPENS, ST_CLOSES } from './springTraining';
 import { maybeGenerateTradeRumor } from './tradeRumors';
+import { ensureParkFactors } from './parkFactors';
+import { initOwnerProfiles, maybeRollOwnerChanges } from './ownership';
+import { ensureLeagueRules, maybeRollRuleChange } from './leagueRules';
 
 export function initWorld(
   seed: number,
@@ -44,6 +47,7 @@ export function initWorld(
   resetPlayerIdCounter();
   resetFranchises();
   resetExpansionMarkets();
+  ensureParkFactors();
 
   const rng = new RNG(seed);
 
@@ -148,6 +152,8 @@ export function initWorld(
   initial.jobSecurity = 50;
   initial.fired = false;
   initial.playMode = playMode;
+  initOwnerProfiles(initial, rng);
+  ensureLeagueRules(initial);
   initial.ownerObjectives = setSeasonObjectives(initial);
   initial.jobSecurityHistory = [];
 
@@ -266,6 +272,8 @@ export function advanceDay(state: GameState): GameState {
     if (newState.day === -50 && newState.intlSignings?.open) {
       closeIntlSigningWindow(newState);
     }
+    // Once-per-offseason rule-change roll
+    maybeRollRuleChange(newState, rng);
 
     if (newState.day === -20 && !newState.rule5) {
       newState.rule5 = startRule5Draft(newState, rng);
@@ -395,6 +403,9 @@ export function advanceDay(state: GameState): GameState {
     minorLeagueDevelopment(newState, rng);
     promoteMinorLeaguers(newState, rng);
     initMinorRosters(newState);
+
+    // Tier 9: roll AI franchise sales each offseason
+    maybeRollOwnerChanges(newState, rng);
   }
 
   newState.rngState = rng.state;
@@ -414,6 +425,18 @@ export function advanceToMilestone(state: GameState, milestone: string): GameSta
     if (milestone === 'end_of_season' && s.day >= 184 && s.season === startSeason) return s;
     if (milestone === 'playoffs_start' && s.phase === 'postseason' && s.season === startSeason) return s;
     if (milestone === 'world_series' && s.bracket?.series?.ws?.status === 'active') return s;
+    if (milestone === 'champion_crowned' && s.season > startSeason) return s;
+    if (milestone === 'offseason' && s.phase === 'offseason' && s.day > start) return s;
+    if (milestone === 'draft_day' && s.draft && !s.draft.complete) return s;
+    if (milestone === 'fa_open' && s.freeAgency?.open) return s;
+  }
+  return s;
+}
+ilestone === 'fa_open' && s.freeAgency?.open) return s;
+  }
+  return s;
+}
+ies' && s.bracket?.series?.ws?.status === 'active') return s;
     if (milestone === 'champion_crowned' && s.season > startSeason) return s;
     if (milestone === 'offseason' && s.phase === 'offseason' && s.day > start) return s;
     if (milestone === 'draft_day' && s.draft && !s.draft.complete) return s;

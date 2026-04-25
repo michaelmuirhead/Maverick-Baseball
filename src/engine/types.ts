@@ -316,6 +316,23 @@ export interface GameState {
   springTraining?: { active: boolean; cutDeadline: number };
   // League-average stat anchors used by OPS+/ERA+ calc each season
   leagueAverages?: Record<number, { OPS: number; ERA: number; AVG: number; OBP: number; SLG: number }>;
+  ownerProfiles?: Record<string, OwnerProfile>;
+  leagueRules?: LeagueRules;
+}
+
+export type OwnerStyle = 'cheap' | 'balanced' | 'spendthrift';
+export interface OwnerProfile {
+  name: string;
+  style: OwnerStyle;
+  acquiredSeason: number;
+  patience: number;
+}
+
+export interface LeagueRules {
+  dh: 'al' | 'both' | 'none';
+  pitchClock: boolean;
+  ballType: 'dead' | 'normal' | 'juiced';
+  changes: { season: number; description: string }[];
 }
 
 export interface ExpansionConfig {

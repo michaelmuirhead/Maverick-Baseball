@@ -88,6 +88,29 @@ export function genPlayer(rng: RNG, franchiseId: string | null, pos: Position): 
 
   const potential = Math.min(99, Math.max(ratings.overall, ratings.overall + Math.round(rng.float(0, 10) + Math.max(0, 27 - age) * 0.4)));
 
+  // Handedness — realistic distributions
+  const batsRoll = rng.next();
+  const bats: 'L' | 'R' | 'S' = isPitcher
+    ? (batsRoll < 0.30 ? 'L' : 'R')
+    : (batsRoll < 0.32 ? 'L' : batsRoll < 0.36 ? 'S' : 'R');
+  const throws: 'L' | 'R' = isPitcher
+    ? (rng.next() < 0.30 ? 'L' : 'R')
+    : (rng.next() < 0.10 ? 'L' : 'R');
+
+  // For pitchers: assign 2-4 specific pitch type ratings
+  if (isPitcher) {
+    const pitchTypes = ['curveball', 'slider', 'splitter', 'cutter', 'sinker'] as const;
+    const numPitches = rng.int(2, 4);
+    const shuffled = [...pitchTypes].sort(() => rng.next() - 0.5).slice(0, numPitches);
+    const baseBreaking = (ratings as any).breaking || 50;
+    for (const pt of shuffled) {
+      (ratings as any)[pt] = ratingFromMean(baseBreaking + rng.int(-6, 6), rng);
+    }
+    if (rng.chance(0.02)) {
+      (ratings as any).knuckleball = ratingFromMean(60, rng);
+    }
+  }
+
   let contract: Player['contract'] = null;
   const serviceYears = Math.max(0, Math.min(12, age - 22 + Math.round(rng.normal(0, 1.5))));
   if (serviceYears < 3) {
@@ -113,6 +136,8 @@ export function genPlayer(rng: RNG, franchiseId: string | null, pos: Position): 
     contract,
     health: 'healthy',
     injury: null,
+    bats,
+    throws,
   };
 }
 

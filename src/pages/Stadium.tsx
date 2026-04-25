@@ -1,11 +1,24 @@
+import { useState } from 'react';
 import { S, COLORS } from '../styles/tokens';
 import { useGame } from '../state/store';
 import { FRANCHISES } from '../engine/franchises';
 import { fmt, fmtShort } from '../engine/format';
 import { Inline } from '../components/Stat';
+import { newParkCost } from '../engine/stadiumReplace';
 
 export function Stadium() {
-  const { state, purchaseUpgradeAction } = useGame();
+  const { state, purchaseUpgradeAction, buildStadiumAction, relocateAction } = useGame();
+  const [showBuild, setShowBuild] = useState(false);
+  const [showReloc, setShowReloc] = useState(false);
+  const [parkName, setParkName] = useState('Maverick Park');
+  const [parkCap, setParkCap] = useState(42000);
+  const [parkPrem, setParkPrem] = useState(3500);
+  const [parkAmen, setParkAmen] = useState(4);
+  const [parkPf, setParkPf] = useState(102);
+  const [relocCity, setRelocCity] = useState('Las Vegas');
+  const [relocName, setRelocName] = useState('Mavericks');
+  const [relocAbbr, setRelocAbbr] = useState('LV');
+  const [relocColor, setRelocColor] = useState('#1f3a5f');
   if (!state) return null;
   const fid = state.userFranchiseId;
   const f = FRANCHISES[fid];
@@ -83,6 +96,61 @@ export function Stadium() {
             <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>{f.secondaryColor}</span>
           </>}
         </div>
+      </div>
+      <div style={{ marginTop: 16, ...S.panel }}>
+        <div style={S.panelTitle}>Build a New Ballpark</div>
+        <div style={S.byline}>
+          A complete replacement: new capacity, premium seats, amenities, and park factors.
+          Estimated cost {fmtShort(newParkCost({ name: parkName, cap: parkCap, premium: parkPrem, amen: parkAmen, pf: parkPf }))}.
+        </div>
+        <button onClick={() => setShowBuild((v) => !v)} style={{ ...S.radioBtn(showBuild), marginTop: 6 }}>
+          {showBuild ? 'Hide builder' : 'Open builder'}
+        </button>
+        {showBuild && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 12 }}>
+            <label style={{ ...S.eyebrow }}>Name<input value={parkName} onChange={(e) => setParkName(e.target.value)} style={{ width: '100%', padding: 4, fontFamily: 'inherit', border: `1px solid ${COLORS.ink}` }} /></label>
+            <label style={{ ...S.eyebrow }}>Capacity<input type="number" value={parkCap} onChange={(e) => setParkCap(Number(e.target.value))} style={{ width: '100%', padding: 4, fontFamily: 'inherit', border: `1px solid ${COLORS.ink}` }} /></label>
+            <label style={{ ...S.eyebrow }}>Premium<input type="number" value={parkPrem} onChange={(e) => setParkPrem(Number(e.target.value))} style={{ width: '100%', padding: 4, fontFamily: 'inherit', border: `1px solid ${COLORS.ink}` }} /></label>
+            <label style={{ ...S.eyebrow }}>Amenity (1-5)<input type="number" min={1} max={5} value={parkAmen} onChange={(e) => setParkAmen(Math.max(1, Math.min(5, Number(e.target.value))))} style={{ width: '100%', padding: 4, fontFamily: 'inherit', border: `1px solid ${COLORS.ink}` }} /></label>
+            <label style={{ ...S.eyebrow }}>Park Factor (95-115)<input type="number" min={95} max={115} value={parkPf} onChange={(e) => setParkPf(Math.max(95, Math.min(115, Number(e.target.value))))} style={{ width: '100%', padding: 4, fontFamily: 'inherit', border: `1px solid ${COLORS.ink}` }} /></label>
+            <button
+              onClick={() => {
+                const r = buildStadiumAction({ name: parkName, cap: parkCap, premium: parkPrem, amen: parkAmen, pf: parkPf });
+                alert(r.ok ? `${parkName} ready for opening day!` : (r.reason || 'Failed'));
+              }}
+              style={{ ...S.radioBtn(true), background: COLORS.red, borderColor: COLORS.red }}
+            >
+              Build
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 16, ...S.panel }}>
+        <div style={S.panelTitle}>Relocate / Rebrand Franchise</div>
+        <div style={S.byline}>
+          Move the team to a new city with a new identity. $500M relocation fee. Triggers a 3-year market reset.
+        </div>
+        <button onClick={() => setShowReloc((v) => !v)} style={{ ...S.radioBtn(showReloc), marginTop: 6 }}>
+          {showReloc ? 'Hide relocation' : 'Open relocation'}
+        </button>
+        {showReloc && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 12 }}>
+            <label style={{ ...S.eyebrow }}>City<input value={relocCity} onChange={(e) => setRelocCity(e.target.value)} style={{ width: '100%', padding: 4, fontFamily: 'inherit', border: `1px solid ${COLORS.ink}` }} /></label>
+            <label style={{ ...S.eyebrow }}>Team Name<input value={relocName} onChange={(e) => setRelocName(e.target.value)} style={{ width: '100%', padding: 4, fontFamily: 'inherit', border: `1px solid ${COLORS.ink}` }} /></label>
+            <label style={{ ...S.eyebrow }}>Abbr (3 chars)<input value={relocAbbr} onChange={(e) => setRelocAbbr(e.target.value.toUpperCase().slice(0, 3))} style={{ width: '100%', padding: 4, fontFamily: 'inherit', border: `1px solid ${COLORS.ink}` }} /></label>
+            <label style={{ ...S.eyebrow }}>Color<input type="color" value={relocColor} onChange={(e) => setRelocColor(e.target.value)} style={{ width: '100%', padding: 0, height: 30, border: `1px solid ${COLORS.ink}` }} /></label>
+            <button
+              onClick={() => {
+                const r = relocateAction({ city: relocCity, name: relocName, abbr: relocAbbr, color: relocColor });
+                alert(r.ok ? `Welcome to ${relocCity}!` : (r.reason || 'Failed'));
+              }}
+              style={{ ...S.radioBtn(true), background: COLORS.gold, borderColor: COLORS.gold, gridColumn: '1 / -1' }}
+            >
+              Move + Rebrand ($500M fee)
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

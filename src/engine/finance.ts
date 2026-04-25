@@ -4,7 +4,8 @@ import { MARKETS } from './markets';
 import { FRANCHISES } from './franchises';
 import { awardSeason } from './awards';
 import { recordSeasonForAllTeams, recordChampion } from './teamHistory';
-// Stats now accrue per-game in sim.ts; no end-of-season generation needed.
+import { recomputeAllAdvanced } from './advancedStats';
+// Stats now accrue per-game in sim.ts; advanced metrics computed at finalization.
 
 export const CBT_TIER1 = 237_000_000;
 export const CBT_TIER2 = 257_000_000;
@@ -58,7 +59,7 @@ export function emptyLedger(): Ledger {
 
 export function genFinance(rng: RNG, franchise: Franchise): Finance {
   const market = MARKETS[franchise.market];
-  const tvBase = ({ mega: 180_000_000, large: 95_000_000, mid: 55_000_000, small: 35_000_000 } as const)[market.tier];
+  const tvBase = ({ mega: 120_000_000, large: 70_000_000, mid: 42_000_000, small: 28_000_000 } as const)[market.tier];
   const tv = Math.round(tvBase * rng.float(0.8, 1.25));
   const nameRights = rng.chance(0.7)
     ? Math.round(({ mega: 20, large: 9, mid: 5, small: 3 } as const)[market.tier] * 1_000_000 * rng.float(0.8, 1.4))
@@ -128,17 +129,17 @@ export function applyAccruals(state: GameState) {
   for (const fid of Object.keys(state.finances)) {
     const fin = state.finances[fid];
     fin.ledger.localTV += Math.round(fin.tvValue / 365);
-    fin.ledger.natTV += Math.round(95_000_000 / 365);
+    fin.ledger.natTV += Math.round(60_000_000 / 365);
     fin.ledger.sponsorRev += Math.round(fin.sponsors / 365);
     fin.ledger.namingRev += Math.round(fin.nameRightsValue / 365);
     const f = FRANCHISES[fid];
     const market = MARKETS[f.market];
-    fin.ledger.stadium += Math.round((32_000_000 + f.amen * 2_000_000) / 365);
+    fin.ledger.stadium += Math.round((42_000_000 + f.amen * 3_000_000) / 365);
     fin.ledger.scouting += Math.round(6_000_000 / 365);
-    fin.ledger.minors += Math.round(14_000_000 / 365);
+    fin.ledger.minors += Math.round(22_000_000 / 365);
     fin.ledger.analytics += Math.round(5_000_000 / 365);
     fin.ledger.medical += Math.round(4_000_000 / 365);
-    fin.ledger.marketing += Math.round(6_000_000 * (market.tier === 'mega' ? 1.6 : 1) / 365);
+    fin.ledger.marketing += Math.round(12_000_000 * (market.tier === 'mega' ? 1.6 : 1) / 365);
     fin.ledger.travel += Math.round(11_000_000 / 365);
     if (fin.debt > 0) fin.ledger.debtService += Math.round(fin.debt * 0.055 / 365);
     if (state.day >= 1 && state.day <= 183) {
@@ -147,7 +148,7 @@ export function applyAccruals(state: GameState) {
       );
       fin.ledger.payroll += Math.round(annualPay / 183);
     }
-    fin.ledger.staff += Math.round(40_000_000 / 365);
+    fin.ledger.staff += Math.round(55_000_000 / 365);
   }
 }
 
@@ -155,7 +156,8 @@ export function finalizeSeason(state: GameState, rng: RNG) {
   awardSeason(state);
   recordChampion(state);
   recordSeasonForAllTeams(state);
-  // (per-game stats already accumulated; nothing to do here)
+  // Per-game stats already accumulated; compute advanced metrics from totals.
+  recomputeAllAdvanced(state);
   const fids = Object.keys(state.finances);
 
   type SeasonRecord = { fid: string; revenue: number; expenses: number; payroll: number; cbtTax: number; };
@@ -241,7 +243,7 @@ export function finalizeSeason(state: GameState, rng: RNG) {
     fin.tvYearsLeft -= 1;
     if (fin.tvYearsLeft <= 0) {
       const market = MARKETS[FRANCHISES[r.fid].market];
-      const base = ({ mega: 200_000_000, large: 110_000_000, mid: 65_000_000, small: 40_000_000 } as const)[market.tier];
+      const base = ({ mega: 135_000_000, large: 80_000_000, mid: 48_000_000, small: 32_000_000 } as const)[market.tier];
       const modifier = state.standings[r.fid].wins >= 90 ? 1.15 : state.standings[r.fid].wins <= 65 ? 0.85 : 1.0;
       fin.tvValue = Math.round(base * modifier * rng.float(0.95, 1.1));
       fin.tvYearsLeft = rng.int(6, 10);

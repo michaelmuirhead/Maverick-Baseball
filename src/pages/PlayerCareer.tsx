@@ -162,6 +162,91 @@ export function PlayerCareer() {
       </div>
 
       <PlayerStatsTable player={p} />
+      <PlayerSplits player={p} />
+      <PostseasonStatsBlock player={p} />
+    </div>
+  );
+}
+
+function PlayerSplits({ player }: { player: any }) {
+  const { state } = useGame();
+  if (!state) return null;
+  const ss = (player.statsHistory || []).slice().sort((a: any, b: any) => b.season - a.season)[0];
+  if (!ss) return null;
+
+  if (player.isPitcher) {
+    const ps = ss.pitcherSplits;
+    if (!ps) return null;
+    return (
+      <div style={{ ...S.panel, marginTop: 16 }}>
+        <div style={S.panelTitle}>Latest-Season Splits</div>
+        <table style={{ width: '100%', fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", marginTop: 8 }}>
+          <thead><tr style={{ borderBottom: `1px solid ${COLORS.ink}` }}>
+            <th style={statTh}>Split</th>
+            <th style={statTh}>IP</th>
+            <th style={statTh}>H</th>
+            <th style={statTh}>ER</th>
+            <th style={statTh}>BB</th>
+            <th style={statTh}>SO</th>
+            <th style={statTh}>HR</th>
+            <th style={statTh}>ERA</th>
+            <th style={statTh}>WHIP</th>
+          </tr></thead>
+          <tbody>
+            {(['home', 'away'] as const).map((k) => ps[k] && (
+              <tr key={k} style={{ borderBottom: '1px dotted rgba(26,24,20,0.13)' }}>
+                <td style={statTd}>{k}</td>
+                <td style={statTd}>{ps[k]!.IP}</td>
+                <td style={statTd}>{ps[k]!.H}</td>
+                <td style={statTd}>{ps[k]!.ER}</td>
+                <td style={statTd}>{ps[k]!.BB}</td>
+                <td style={statTd}>{ps[k]!.SO}</td>
+                <td style={statTd}>{ps[k]!.HR}</td>
+                <td style={statTd}>{ps[k]!.ERA.toFixed(2)}</td>
+                <td style={statTd}>{ps[k]!.WHIP.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  const hs = ss.hitterSplits;
+  if (!hs) return null;
+  return (
+    <div style={{ ...S.panel, marginTop: 16 }}>
+      <div style={S.panelTitle}>Latest-Season Splits</div>
+      <table style={{ width: '100%', fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", marginTop: 8 }}>
+        <thead><tr style={{ borderBottom: `1px solid ${COLORS.ink}` }}>
+          <th style={statTh}>Split</th>
+          <th style={statTh}>AB</th>
+          <th style={statTh}>H</th>
+          <th style={statTh}>HR</th>
+          <th style={statTh}>BB</th>
+          <th style={statTh}>SO</th>
+          <th style={statTh}>AVG</th>
+          <th style={statTh}>OBP</th>
+          <th style={statTh}>SLG</th>
+          <th style={statTh}>OPS</th>
+        </tr></thead>
+        <tbody>
+          {(['vsL', 'vsR', 'home', 'away'] as const).map((k) => hs[k] && (
+            <tr key={k} style={{ borderBottom: '1px dotted rgba(26,24,20,0.13)' }}>
+              <td style={statTd}>{k === 'vsL' ? 'vs LHP' : k === 'vsR' ? 'vs RHP' : k}</td>
+              <td style={statTd}>{hs[k]!.AB}</td>
+              <td style={statTd}>{hs[k]!.H}</td>
+              <td style={statTd}>{hs[k]!.HR}</td>
+              <td style={statTd}>{hs[k]!.BB}</td>
+              <td style={statTd}>{hs[k]!.SO}</td>
+              <td style={statTd}>{hs[k]!.AVG.toFixed(3)}</td>
+              <td style={statTd}>{hs[k]!.OBP.toFixed(3)}</td>
+              <td style={statTd}>{hs[k]!.SLG.toFixed(3)}</td>
+              <td style={statTd}>{hs[k]!.OPS.toFixed(3)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -310,3 +395,77 @@ const statTh: React.CSSProperties = {
 const statTd: React.CSSProperties = {
   textAlign: 'right', padding: '4px 6px',
 };
+
+
+function PostseasonStatsBlock({ player }: { player: any }) {
+  const ps = (player.statsHistory || []).filter((s: any) => s.postseason);
+  if (ps.length === 0) return null;
+  return (
+    <div style={{ ...S.panel, marginTop: 16 }}>
+      <div style={S.panelTitle}>Postseason Stats</div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: "'IBM Plex Mono', monospace" }}>
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${COLORS.ink}` }}>
+              <th style={statTh}>Year</th>
+              {player.isPitcher ? (
+                <>
+                  <th style={statTh}>G</th>
+                  <th style={statTh}>W</th>
+                  <th style={statTh}>L</th>
+                  <th style={statTh}>IP</th>
+                  <th style={statTh}>SO</th>
+                  <th style={statTh}>ERA</th>
+                  <th style={statTh}>WHIP</th>
+                </>
+              ) : (
+                <>
+                  <th style={statTh}>G</th>
+                  <th style={statTh}>AB</th>
+                  <th style={statTh}>H</th>
+                  <th style={statTh}>HR</th>
+                  <th style={statTh}>RBI</th>
+                  <th style={statTh}>AVG</th>
+                  <th style={statTh}>OPS</th>
+                </>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {ps.map((s: any) => {
+              const h = s.postseason?.hitter;
+              const p = s.postseason?.pitcher;
+              return (
+                <tr key={s.season} style={{ borderBottom: '1px dotted rgba(26,24,20,0.13)' }}>
+                  <td style={statTd}>{s.season}</td>
+                  {player.isPitcher && p && (
+                    <>
+                      <td style={statTd}>{p.G}</td>
+                      <td style={statTd}>{p.W}</td>
+                      <td style={statTd}>{p.L}</td>
+                      <td style={statTd}>{p.IP}</td>
+                      <td style={statTd}>{p.SO}</td>
+                      <td style={statTd}>{p.ERA.toFixed(2)}</td>
+                      <td style={statTd}>{p.WHIP.toFixed(2)}</td>
+                    </>
+                  )}
+                  {!player.isPitcher && h && (
+                    <>
+                      <td style={statTd}>{h.G}</td>
+                      <td style={statTd}>{h.AB}</td>
+                      <td style={statTd}>{h.H}</td>
+                      <td style={statTd}>{h.HR}</td>
+                      <td style={statTd}>{h.RBI}</td>
+                      <td style={statTd}>{h.AVG.toFixed(3)}</td>
+                      <td style={statTd}>{h.OPS.toFixed(3)}</td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

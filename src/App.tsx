@@ -25,6 +25,7 @@ import { InternationalSignings } from './pages/InternationalSignings';
 import { Rule5 } from './pages/Rule5';
 import { Minors } from './pages/Minors';
 import { LiveGame } from './pages/LiveGame';
+import { Leaderboards } from './pages/Leaderboards';
 
 export default function App() {
   const { view, page, hasSavedGame, loadFromStorage, state } = useGame();
@@ -63,6 +64,7 @@ export default function App() {
     case 'rule5': pageEl = <Rule5 />; break;
     case 'minors': pageEl = <Minors />; break;
     case 'live_game': pageEl = <LiveGame />; break;
+    case 'leaderboards': pageEl = <Leaderboards />; break;
     default: pageEl = <Dashboard />;
   }
 
