@@ -18,12 +18,24 @@ import { saveGame, loadGame, clearSave, hasSave } from './save';
 export const useGame = create((set, get) => ({
     view: 'splash',
     page: 'dashboard',
+    lastSubByGroup: {},
     state: null,
     selectedPlayerId: null,
     setSelectedPlayerId: (id) => set({ selectedPlayerId: id, page: id ? 'player_career' : get().page }),
     setState: (s) => { set({ state: s }); saveGame(s); },
     setView: (v) => set({ view: v }),
-    setPage: (p) => set({ page: p }),
+    setPage: (p) => {
+        const cur = get();
+        const NAV_GROUPS = [
+            { id: 'team', subs: ['dashboard', 'roster', 'lineup', 'depth_chart', 'roster_management', 'minors', 'staff', 'injured_list'] },
+            { id: 'players', subs: ['trades', 'free_agency', 'draft', 'international', 'rule5', 'prospects'] },
+            { id: 'games', subs: ['schedule', 'standings', 'live_game', 'playoffs'] },
+            { id: 'office', subs: ['finances', 'stadium', 'awards', 'leaderboards', 'history'] },
+            { id: 'misc', subs: ['news', 'settings'] },
+        ];
+        const grp = NAV_GROUPS.find(g => g.subs.includes(p))?.id || 'team';
+        set({ page: p, lastSubByGroup: { ...cur.lastSubByGroup, [grp]: p } });
+    },
     newGame: (seed, franchiseId, scenario, expansionConfig, playMode) => {
         const state = initWorld(seed, franchiseId, scenario, expansionConfig || null, playMode || 'owner');
         set({ state, view: 'game', page: 'dashboard' });
