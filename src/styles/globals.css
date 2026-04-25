@@ -1,0 +1,12 @@
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  background: #f3ecdc;
+  color: #1a1814;
+}
+* { box-sizing: border-box; }
+button { font-family: inherit; }
+a { color: inherit; }
+::selection { background: #1a1814; color: #f3ecdc; }

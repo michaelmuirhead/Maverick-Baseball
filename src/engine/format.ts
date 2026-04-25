@@ -1,0 +1,47 @@
+import type { GameState, Phase } from './types';
+
+export function fmtShort(n: number): string {
+  const sign = n < 0 ? '-' : '';
+  const a = Math.abs(n);
+  if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(2)}B`;
+  if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `${sign}$${(a / 1e3).toFixed(0)}K`;
+  return `${sign}$${a.toFixed(0)}`;
+}
+
+export function fmt(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+export function ratingClass(r: number): string {
+  if (r >= 70) return '#7a4d00';
+  if (r >= 60) return '#1f3627';
+  if (r >= 50) return '#1a1814';
+  if (r >= 40) return '#5f5a4d';
+  return '#8a8575';
+}
+
+export function toScout(r: number): number {
+  return Math.round(20 + (r / 100) * 60);
+}
+
+export function seasonDate(day: number, season: number): string {
+  const base = new Date(season, 2, 28);
+  const d = new Date(base.getTime() + day * 86400000);
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+export function phaseLabel(p: Phase, state?: GameState | null): string {
+  if (p === 'postseason' && state?.bracket) {
+    if (state.bracket.champion) return 'Season Complete';
+    const r = state.bracket.currentRound;
+    return ({
+      wild_card: 'Wild Card Round',
+      division: 'Division Series',
+      lcs: 'Championship Series',
+      world_series: 'World Series',
+      complete: 'Postseason',
+    } as const)[r] || 'Postseason';
+  }
+  return ({ offseason: 'Offseason', regular_season: 'Regular Season', postseason: 'Postseason' } as const)[p] || p;
+}
