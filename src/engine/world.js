@@ -28,6 +28,10 @@ import { initOwnerProfiles, maybeRollOwnerChanges } from './ownership';
 import { ensureLeagueRules, maybeRollRuleChange } from './leagueRules';
 import { initAllDepthCharts } from './depth';
 import { initMorale, updateWeeklyMorale, rollDemands } from './morale';
+import { ensureAllToolGrades } from './tools';
+import { flagTwoWayProspects } from './twoWay';
+import { rollSeasonDefensiveMetrics } from './defenseMetrics';
+import { processDeferredPayments, applyPerformanceBonuses, processInjuryInsurance, resolvePlayerOptions, resolveOptOuts } from './contractClauses';
 import { decayFatigue } from './fatigue';
 import { processWaivers } from './waivers';
 import { fileArbitrations, resolveArbitrations } from './contracts';
@@ -132,6 +136,8 @@ export function initWorld(seed, userFranchiseId, scenario, expansionConfig, play
     ensureLeagueRules(initial);
     initAllDepthCharts(initial);
     initMorale(initial);
+    Object.assign(initial, ensureAllToolGrades(initial));
+    Object.assign(initial, flagTwoWayProspects(initial, rng, 1));
     initial.ownerObjectives = setSeasonObjectives(initial);
     initial.jobSecurityHistory = [];
     initial.rngState = rng.state;
@@ -242,6 +248,18 @@ export function advanceDay(state) {
         if (newState.day === -75) {
             const cases = fileArbitrations(newState, rng);
             resolveArbitrations(newState, cases, rng);
+        }
+        // End-of-season defensive metrics + perf bonuses + insurance settle (day -120)
+        if (newState.day === -120) {
+            newState = rollSeasonDefensiveMetrics(newState);
+            const bonusRes = applyPerformanceBonuses(newState);
+            newState = bonusRes.state;
+            const insRes = processInjuryInsurance(newState);
+            newState = insRes.state;
+            newState = resolvePlayerOptions(newState, rng);
+            newState = resolveOptOuts(newState, rng);
+            newState = processDeferredPayments(newState);
+            newState = ensureAllToolGrades(newState);
         }
         if (newState.freeAgency?.open) {
             newState = simAIFreeAgentBids(newState, rng);

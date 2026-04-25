@@ -94,9 +94,9 @@ export function chooseAutoTeamSlot(userLg: League, userDiv: Division) {
 export function registerExpansionFranchise(id: string, config: ExpansionConfig) {
   const marketId = `${id}_mkt`;
   MARKETS[marketId] = {
-    tier: config.marketTier,
-    loyalty: config.marketLoyalty,
-    corp: config.marketCorp,
+    tier: config.marketTier || 'mid',
+    loyalty: config.marketLoyalty ?? 50,
+    corp: config.marketCorp ?? 50,
   };
   FRANCHISES[id] = {
     abbr: config.abbr,
@@ -116,5 +116,6 @@ export function registerExpansionFranchise(id: string, config: ExpansionConfig) 
     expansion: true,
     secondaryColor: config.secondaryColor,
     seasonsActive: 0,
+    state: config.state,
   };
 }

@@ -33,7 +33,53 @@ export type Handedness = 'L' | 'R' | 'S';     // S = switch (hitters only)
 export type Ratings = HitterRatings & PitcherRatings;
 
 export type ContractStatus = 'pre-arb' | 'arb' | 'extension' | 'fa';
-export interface Contract { salary: number; years: number; status: ContractStatus; serviceDays: number; ntc?: boolean; }
+export interface Contract { salary: number; years: number; status: ContractStatus; serviceDays: number; ntc?: boolean; clauses?: ContractClauses; }
+
+export interface ContractClauses {
+  noTradeFull?: boolean;                    // full no-trade
+  noTradeList?: string[];                   // limited NTC: franchise IDs blocked
+  tenFiveRights?: boolean;                  // auto-grants full no-trade
+  playerOption?: { yearOffset: number; salary: number; exercised?: boolean | null };
+  mutualOption?: { yearOffset: number; salary: number; exercisedByTeam?: boolean | null; exercisedByPlayer?: boolean | null };
+  optOut?: { yearOffset: number; used?: boolean };
+  perfBonuses?: { metric: 'AB' | 'IP' | 'GS' | 'AS' | 'MVP' | 'CY' | 'GG'; threshold: number; bonus: number }[];
+  deferred?: { perYear: number; payoutYears: number; startYear?: number };
+  insurance?: { coveragePct: number; activatesOnIL60?: boolean };  // % of salary covered if season-ending
+}
+
+export interface ToolGrades {
+  // 20-80 scout scale (20 well below avg, 50 avg, 80 elite)
+  hit?: number; power?: number; run?: number; arm?: number; field?: number;
+  // pitcher pitches
+  fb?: number; sl?: number; cb?: number; ch?: number; ct?: number; sp?: number; kn?: number;
+  control?: number; command?: number;
+  // floor/ceiling for prospects
+  ceiling?: number; floor?: number;
+  // catcher tools
+  framing?: number; blocking?: number; throwing?: number;
+}
+
+export interface TwoWayUsage {
+  isTwoWay: boolean;
+  hitterRatings?: HitterRatings;            // separately tracked when two-way
+  pitcherRatings?: PitcherRatings;
+  pitchingRole?: 'SP' | 'RP' | 'closer';
+  hittingDays?: number;                     // days used as hitter this season
+  pitchingDays?: number;                    // days used as pitcher this season
+}
+
+export interface DefensiveMetrics {
+  inningsPlayed?: Partial<Record<Position, number>>;
+  drs?: number;        // defensive runs saved (season)
+  uzr?: number;        // ultimate zone rating
+  oaa?: number;        // outs above average
+  rangeFactor?: number;
+  fieldingPct?: number;
+  errors?: number;
+  catcherFraming?: number;       // runs added via framing
+  catcherBlocking?: number;      // runs saved via blocking
+  catcherThrowing?: number;      // CS%
+}
 
 export interface Injury {
   type: string;
@@ -118,6 +164,10 @@ export interface Player {
   optionsUsed?: number;           // 0-3 minor-league option years used
   onFortyMan?: boolean;           // included on protected 40-man roster
   fatigue?: { lastAppearance: number; consecutiveDays: number; pitchCount: number };
+  toolGrades?: ToolGrades;
+  twoWay?: TwoWayUsage;
+  defensiveMetrics?: DefensiveMetrics;
+  primaryPosOverride?: Position;            // user-set position lock
   draftYear?: number; draftRound?: number; draftPick?: number; draftedBy?: string;
   retired?: boolean; retiredOn?: number;
   awards?: { season: number; type: AwardType; league?: League }[];
@@ -320,19 +370,13 @@ export interface GameState {
   championHistory?: ChampionRecord[];
   minorRosters?: Record<string, MinorRosters>;
   springTraining?: { active: boolean; cutDeadline: number };
-  // League-average stat anchors used by OPS+/ERA+ calc each season
   leagueAverages?: Record<number, { OPS: number; ERA: number; AVG: number; OBP: number; SLG: number }>;
   ownerProfiles?: Record<string, OwnerProfile>;
   leagueRules?: LeagueRules;
-  // Per-team depth charts: ordered list of player IDs at each position
   depthCharts?: Record<string, Record<string, string[]>>;
-  // 40-man rosters per team
   fortyMan?: Record<string, string[]>;
-  // Pending waiver claims
   waiverWire?: { playerId: string; fromFid: string; placedDay: number; expiresOnDay: number; claimedBy?: string }[];
-  // Per-game weather (key: gameId)
   gameWeather?: Record<string, { temp: number; wind: number; conditions: 'clear' | 'cloudy' | 'rain' | 'wind' }>;
-  // QO offers + comp picks
   qualifyingOffers?: { playerId: string; fromFid: string; declined?: boolean; signedElsewhere?: boolean }[];
   compPicks?: { fid: string; round: number; year: number; reason: string }[];
 }
@@ -357,7 +401,10 @@ export interface ExpansionConfig {
   lg: League; div: Division;
   color: string; secondaryColor?: string;
   park: string; cap: number; premium: number; pf: number; amen: number;
-  marketTier: Market['tier'];
-  marketLoyalty: number; marketCorp: number;
-  champ?: number; pennants?: number;
+  ownerName?: string;
+  marketTier?: 'mega' | 'large' | 'mid' | 'small';
+  marketLoyalty?: number;
+  marketCorp?: number;
+  champ?: number;
+  pennants?: number;
 }
