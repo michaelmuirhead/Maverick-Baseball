@@ -10,3 +10,54 @@ html, body, #root {
 button { font-family: inherit; }
 a { color: inherit; }
 ::selection { background: #1a1814; color: #f3ecdc; }
+
+/* Mobile responsive tweaks. Desktop layout is defined inline in Shell.tsx;
+   below 800px we stack the masthead, wrap nav, and make tables horizontally
+   scroll rather than squish. */
+@media (max-width: 800px) {
+  /* Masthead + nav */
+  header > div {
+    flex-direction: column !important;
+    gap: 4px !important;
+    text-align: center !important;
+  }
+  header > div > div {
+    text-align: center !important;
+  }
+  nav > div {
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    padding: 8px !important;
+    justify-content: center !important;
+  }
+  nav button {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+  main {
+    padding: 12px !important;
+  }
+  /* Two-column grids collapse to one */
+  [style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  [style*="grid-template-columns: 2fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Tables inside panels scroll */
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  /* Footer buttons wrap */
+  footer > div {
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    padding: 8px !important;
+  }
+  footer button {
+    font-size: 12px !important;
+    padding: 6px 8px !important;
+  }
+}

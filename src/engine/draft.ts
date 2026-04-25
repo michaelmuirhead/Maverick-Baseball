@@ -41,7 +41,7 @@ export function generateDraftClass(rng: RNG, year: number, teamCount: number): P
     p.draftYear = year;
     // Reduce current ratings (raw) but bump potential ceiling
     p.ratings.overall = Math.max(20, p.ratings.overall - rng.int(8, 16));
-    p.potential = Math.min(80, p.ratings.overall + rng.int(8, 22));
+    p.potential = Math.min(99, p.ratings.overall + rng.int(8, 22));
     if (p.ratings.contact !== undefined) p.ratings.contact = Math.max(20, p.ratings.contact - rng.int(5, 12));
     if (p.ratings.power !== undefined) p.ratings.power = Math.max(20, p.ratings.power - rng.int(5, 10));
     if (p.ratings.fastball !== undefined) p.ratings.fastball = Math.max(20, p.ratings.fastball - rng.int(5, 10));

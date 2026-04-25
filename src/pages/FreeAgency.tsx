@@ -25,7 +25,7 @@ export function FreeAgency() {
           <div style={S.sectionSub}>Free agency opens after the World Series.</div>
         </div>
         <div style={S.panel}>
-          <p style={S.byline}>The market hasn't opened yet — current season is in progress.</p>
+          <p style={S.byline}>The market hasn't opened yet -- current season is in progress.</p>
           <button onClick={() => advanceTo('fa_open')} style={S.radioBtn(true)}>Sim to FA Open</button>
         </div>
       </div>
@@ -60,7 +60,7 @@ export function FreeAgency() {
     if (!selected) return;
     const r = faPlaceBid(selected, aav, years);
     if (!r.ok) alert(r.reason);
-    else alert(`Bid placed: ${fmtShort(aav)} × ${years} yr`);
+    else alert(`Bid placed: ${fmtShort(aav)} x ${years} yr`);
   };
 
   return (
@@ -68,7 +68,7 @@ export function FreeAgency() {
       <div style={S.sectionRule}>
         <h2 style={S.sectionHead}>Free Agency</h2>
         <div style={S.sectionSub}>
-          {fa.open ? `Window open · closes day ${fa.closesOn}` : 'Window closed — leftover bargains only'}
+          {fa.open ? `Window open - closes day ${fa.closesOn}` : 'Window closed - leftover bargains only'}
         </div>
       </div>
 
@@ -123,7 +123,7 @@ export function FreeAgency() {
                     <td style={{ ...S.td, ...S.tdNum }}>{l.bids.length}</td>
                     <td style={S.td}>
                       {signed ? (
-                        <span style={{ ...S.badge, ...S.badgeGreen }}>Signed → {FRANCHISES[l.signedBy!].abbr}</span>
+                        <span style={{ ...S.badge, ...S.badgeGreen }}>{`Signed → ${FRANCHISES[l.signedBy!].abbr}`}</span>
                       ) : (
                         <span style={{ ...S.badge, ...S.badgeGold }}>Open</span>
                       )}
@@ -148,11 +148,21 @@ export function FreeAgency() {
             const listing = fa.listings.find((l) => l.playerId === selected);
             const p = state.players[selected];
             if (!listing || !p) return null;
+            const signed = !!listing.signedBy;
+            const insufficient = fin.teamCash < aav;
+            const reason = signed
+              ? `Already signed to ${FRANCHISES[listing.signedBy!].abbr}`
+              : insufficient
+              ? `Need ${fmtShort(aav)} cash; have ${fmtShort(fin.teamCash)}`
+              : !fa.open
+              ? 'Window closed - leftover bargain bid'
+              : null;
+            const canBid = !signed && !insufficient;
             return (
               <div style={{ ...S.panel, marginTop: 12 }}>
                 <div style={S.panelTitle}>Place Bid</div>
                 <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 18 }}>{p.firstName} {p.lastName}</div>
-                <div style={S.byline}>{p.pos} · Age {p.age} · OVR {toScout(p.ratings.overall)}</div>
+                <div style={S.byline}>{p.pos} - Age {p.age} - OVR {toScout(p.ratings.overall)}</div>
 
                 <div style={{ marginTop: 8 }}>
                   <div style={S.eyebrow}>AAV (per year)</div>
@@ -178,9 +188,25 @@ export function FreeAgency() {
                 <div style={{ marginTop: 8, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
                   Total: {fmtShort(aav * years)}
                 </div>
-                <button onClick={submitBid} disabled={!fa.open} style={{ ...S.radioBtn(true), background: COLORS.red, borderColor: COLORS.red, marginTop: 8, opacity: fa.open ? 1 : 0.5 }}>
+                <button
+                  onClick={submitBid}
+                  disabled={!canBid}
+                  style={{
+                    ...S.radioBtn(true),
+                    background: canBid ? COLORS.red : COLORS.inkDim,
+                    borderColor: canBid ? COLORS.red : COLORS.inkDim,
+                    marginTop: 8,
+                    opacity: canBid ? 1 : 0.5,
+                    cursor: canBid ? 'pointer' : 'not-allowed',
+                  }}
+                >
                   Submit Bid
                 </button>
+                {reason && (
+                  <div style={{ ...S.byline, fontSize: 11, marginTop: 4, color: signed || insufficient ? COLORS.red : COLORS.inkDim }}>
+                    {reason}
+                  </div>
+                )}
 
                 <div style={{ marginTop: 12 }}>
                   <div style={S.eyebrow}>Current Bids</div>
@@ -192,7 +218,7 @@ export function FreeAgency() {
                       <div key={b.franchiseId + b.dayPlaced} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px dotted rgba(26,24,20,0.13)' }}>
                         <span>{FRANCHISES[b.franchiseId].abbr}</span>
                         <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
-                          {fmtShort(b.aav)} × {b.years}
+                          {fmtShort(b.aav)} x {b.years}
                         </span>
                       </div>
                     ))}

@@ -103,18 +103,23 @@ export interface TradeEval {
   reason: string;
 }
 
+export function cashToTradeValue(dollars: number): number {
+  return Math.round(dollars / 2_000_000);
+}
+
 export function evaluateTradeForAI(
   state: GameState,
   aiFid: string,
   givingIds: string[],
   receivingIds: string[],
+  aiGivingCash: number = 0,
+  aiReceivingCash: number = 0,
 ): TradeEval {
   const giving = givingIds.map((id) => state.players[id]).filter(Boolean);
   const receiving = receivingIds.map((id) => state.players[id]).filter(Boolean);
 
-  if (giving.length === 0 || receiving.length === 0) {
-    return { accepted: false, reason: 'Empty package' };
-  }
+  if (giving.length === 0 && aiGivingCash === 0) return { accepted: false, reason: 'Empty package' };
+  if (receiving.length === 0 && aiReceivingCash === 0) return { accepted: false, reason: 'Empty package' };
 
   for (const p of giving) {
     if (p.contract?.ntc && Math.random() < 0.9) {
@@ -122,8 +127,8 @@ export function evaluateTradeForAI(
     }
   }
 
-  const givingValue = giving.reduce((s, p) => s + tradeValue(p), 0);
-  const receivingValue = receiving.reduce((s, p) => s + tradeValue(p), 0);
+  const givingValue = giving.reduce((s, p) => s + tradeValue(p), 0) + cashToTradeValue(aiGivingCash);
+  const receivingValue = receiving.reduce((s, p) => s + tradeValue(p), 0) + cashToTradeValue(aiReceivingCash);
   const philosophy = effectivePhilosophy(state, aiFid);
 
   let recvMult = 1.0;
@@ -205,6 +210,36 @@ export function suggestCounter(
     .filter((x) => x.v > 5 && x.v < gap * 1.8)
     .sort((a, b) => a.diff - b.diff);
   return ranked[0]?.p.id || null;
+}
+
+export function executeTradeWithCash(
+  state: GameState,
+  fromFid: string,
+  toFid: string,
+  fromPlayerIds: string[],
+  toPlayerIds: string[],
+  fromCash: number,
+  toCash: number,
+): GameState {
+  let s = fromPlayerIds.length > 0 || toPlayerIds.length > 0
+    ? executeTrade(state, fromFid, toFid, fromPlayerIds, toPlayerIds)
+    : { ...state, finances: { ...state.finances }, news: [...state.news] };
+  const net = fromCash - toCash;
+  if (net !== 0 && s.finances[fromFid] && s.finances[toFid]) {
+    s.finances[fromFid].teamCash -= net;
+    s.finances[toFid].teamCash += net;
+    if (net > 0) {
+      s.news.unshift({
+        id: `cash_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        day: s.day,
+        season: s.season,
+        headline: `${FRANCHISES[fromFid].abbr} sends $${Math.round(net / 1_000_000)}M cash to ${FRANCHISES[toFid].abbr}`,
+        body: 'Cash consideration attached to trade.',
+        category: 'trade',
+      });
+    }
+  }
+  return s;
 }
 
 export function executeTrade(
@@ -302,7 +337,7 @@ export function tradeWindowOpen(state: GameState): boolean {
 export function tradeWindowLabel(state: GameState): string {
   if (!tradeWindowOpen(state)) {
     if (state.day > 120 && state.day <= 183) return 'Deadline has passed';
-    if (state.phase === 'postseason') return 'Postseason — window closed';
+    if (state.phase === 'postseason') return 'Postseason - window closed';
     return 'Window closed';
   }
   if (state.phase === 'regular_season') {

@@ -16,21 +16,31 @@ let PLAYER_ID_COUNTER = 0;
 export function newPlayerId(): string { return `p_${(++PLAYER_ID_COUNTER).toString(36)}`; }
 export function resetPlayerIdCounter() { PLAYER_ID_COUNTER = 0; }
 
+// Internal ratings: 0-99 scale (real-MLB-style scouting).
+// 95+ generational, 80+ all-star, 70+ star, 60+ above avg, 50 avg.
 export function ratingFromMean(mean: number, rng: RNG, spread = 8): number {
-  return Math.round(Math.max(20, Math.min(80, rng.normal(mean, spread))));
+  return Math.round(Math.max(20, Math.min(99, rng.normal(mean, spread))));
 }
 
 export function talentTier(rng: RNG): Player['tier'] {
   const r = rng.next();
-  if (r < 0.05) return 'elite';
-  if (r < 0.25) return 'star';
-  if (r < 0.75) return 'solid';
-  if (r < 0.95) return 'fringe';
+  if (r < 0.005) return 'legend';
+  if (r < 0.05)  return 'elite';
+  if (r < 0.25)  return 'star';
+  if (r < 0.75)  return 'solid';
+  if (r < 0.95)  return 'fringe';
   return 'org';
 }
 
 export function meanForTier(tier: Player['tier']): number {
-  return ({ elite: 68, star: 58, solid: 50, fringe: 42, org: 35 } as const)[tier];
+  return ({
+    legend: 86,
+    elite:  74,
+    star:   62,
+    solid:  52,
+    fringe: 44,
+    org:    36,
+  } as const)[tier];
 }
 
 export function genPlayer(rng: RNG, franchiseId: string | null, pos: Position): Player {
@@ -76,7 +86,7 @@ export function genPlayer(rng: RNG, franchiseId: string | null, pos: Position): 
     ratings.overall = Math.round(off * offWeight + def * (1 - offWeight));
   }
 
-  const potential = Math.min(80, Math.max(ratings.overall, ratings.overall + Math.round(rng.float(0, 10) + Math.max(0, 27 - age) * 0.4)));
+  const potential = Math.min(99, Math.max(ratings.overall, ratings.overall + Math.round(rng.float(0, 10) + Math.max(0, 27 - age) * 0.4)));
 
   let contract: Player['contract'] = null;
   const serviceYears = Math.max(0, Math.min(12, age - 22 + Math.round(rng.normal(0, 1.5))));

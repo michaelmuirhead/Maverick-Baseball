@@ -128,7 +128,7 @@ export function applyInjury(state: GameState, rng: RNG, p: Player): Injury {
 
 export function recoverPlayer(_state: GameState, p: Player) {
   if (!p.injury) return;
-  p.ratings.overall = Math.min(80, p.ratings.overall + p.injury.ratingPenalty);
+  p.ratings.overall = Math.min(99, p.ratings.overall + p.injury.ratingPenalty);
   p.health = 'healthy';
   p.injury = null;
 }

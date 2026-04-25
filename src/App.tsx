@@ -19,6 +19,10 @@ import { Staff } from './pages/Staff';
 import { Awards } from './pages/Awards';
 import { PlayerCareer } from './pages/PlayerCareer';
 import { Settings } from './pages/Settings';
+import { TeamHistory } from './pages/TeamHistory';
+import { Prospects } from './pages/Prospects';
+import { InternationalSignings } from './pages/InternationalSignings';
+import { Rule5 } from './pages/Rule5';
 
 export default function App() {
   const { view, page, hasSavedGame, loadFromStorage, state } = useGame();
@@ -51,6 +55,10 @@ export default function App() {
     case 'awards': pageEl = <Awards />; break;
     case 'player_career': pageEl = <PlayerCareer />; break;
     case 'settings': pageEl = <Settings />; break;
+    case 'history': pageEl = <TeamHistory />; break;
+    case 'prospects': pageEl = <Prospects />; break;
+    case 'international': pageEl = <InternationalSignings />; break;
+    case 'rule5': pageEl = <Rule5 />; break;
     default: pageEl = <Dashboard />;
   }
 

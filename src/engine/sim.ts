@@ -4,18 +4,8 @@ import { FRANCHISES } from './franchises';
 import { gameDayRev } from './finance';
 import { managerIntangibleBonus, computeTacticalContribution } from './coaches';
 import { effectiveOverall } from './streaks';
+import { chemistryMultiplier } from './chemistry';
 
-/**
- * Composite team strength. Manager tactical rating shows up here in two ways:
- *   • Bench leverage   — great managers pinch-hit at the right time, so the
- *                        team's hitter rating reflects more bench-best, less
- *                        worst-starter.
- *   • Bullpen leverage — great managers ride the closer/setup man in high-
- *                        leverage spots, so the bullpen rating weights the top
- *                        2 RPs more heavily.
- * Plus a small intangibles bonus from chemistry + tactical (manages clubhouse,
- * shifts, hit-and-run calls).
- */
 export function teamStrength(state: GameState, fid: string): number {
   const roster = state.rosters[fid];
   if (!roster || roster.length === 0) return 50;
@@ -26,8 +16,6 @@ export function teamStrength(state: GameState, fid: string): number {
 
   const tac = computeTacticalContribution(state, fid);
 
-  // Position-constrained starting lineup. Each position needs its own player,
-  // so worst-starter is meaningfully lower than top-8-by-OVR.
   const POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
   const used = new Set<string>();
   const starters: typeof hitters = [];
@@ -53,25 +41,22 @@ export function teamStrength(state: GameState, fid: string): number {
     hitWithBench = baseHit + upgrade * pinchHitFreq / 8;
   }
 
-  // SP — unchanged (starter quality is the starter quality)
   const spAvg = sp.length > 0
     ? sp.slice(0, 5).reduce((s, p) => s + effectiveOverall(p), 0) / Math.min(5, sp.length)
     : 50;
 
-  // Bullpen contribution with leverage weighting
   const rpTop2 = rp.slice(0, 2);
   const rpBack2 = rp.slice(2, 4);
   const rpTop2Avg = rpTop2.length > 0 ? rpTop2.reduce((s, p) => s + effectiveOverall(p), 0) / rpTop2.length : 50;
   const rpBack2Avg = rpBack2.length > 0 ? rpBack2.reduce((s, p) => s + effectiveOverall(p), 0) / rpBack2.length : rpTop2Avg;
-  // tactical 0 → 0.5/0.5 (even use); tactical +1 → 0.75/0.25 (closer-heavy);
-  // tactical -1 → 0.25/0.75 (worst guys get high-leverage spots, bad).
   const leverageWeight = 0.5 + 0.25 * tac.tacticalNorm;
   const rpAvg = rpTop2Avg * leverageWeight + rpBack2Avg * (1 - leverageWeight);
 
   const park = (FRANCHISES[fid].pf - 100) * 0.05;
   const intangibles = managerIntangibleBonus(state, fid);
 
-  return hitWithBench * 0.5 + spAvg * 0.35 + rpAvg * 0.15 + park + intangibles;
+  const raw = hitWithBench * 0.5 + spAvg * 0.35 + rpAvg * 0.15 + park + intangibles;
+  return raw * chemistryMultiplier(state, fid);
 }
 
 export function simGame(rng: RNG, state: GameState, game: Game) {

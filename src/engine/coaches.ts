@@ -27,7 +27,7 @@ function newCoachId(): string { return `c_${(++COACH_ID_COUNTER).toString(36)}`;
 export function resetCoachIdCounter() { COACH_ID_COUNTER = 0; }
 
 function ratingFromMean(mean: number, rng: RNG, spread = 9): number {
-  return Math.round(Math.max(20, Math.min(80, rng.normal(mean, spread))));
+  return Math.round(Math.max(20, Math.min(99, rng.normal(mean, spread))));
 }
 
 function computeOverall(role: CoachRole, ratings: { tactical: number; development: number; chemistry: number }): number {

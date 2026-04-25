@@ -14,15 +14,17 @@ export function fmt(n: number): string {
 }
 
 export function ratingClass(r: number): string {
-  if (r >= 70) return '#7a4d00';
+  if (r >= 85) return '#7a1f00';
+  if (r >= 75) return '#7a4d00';
   if (r >= 60) return '#1f3627';
   if (r >= 50) return '#1a1814';
   if (r >= 40) return '#5f5a4d';
   return '#8a8575';
 }
 
+// Internal ratings live on a 0-99 scale; show as-is so users see real-MLB tiers.
 export function toScout(r: number): number {
-  return Math.round(20 + (r / 100) * 60);
+  return Math.round(r);
 }
 
 export function seasonDate(day: number, season: number): string {

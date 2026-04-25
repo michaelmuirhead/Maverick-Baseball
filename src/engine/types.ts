@@ -85,7 +85,7 @@ export interface Player {
   isPitcher: boolean;
   ratings: Ratings;
   potential: number;
-  tier: 'elite' | 'star' | 'solid' | 'fringe' | 'org';
+  tier: 'legend' | 'elite' | 'star' | 'solid' | 'fringe' | 'org';
   franchiseId: string | null;
   contract: Contract | null;
   health: 'healthy' | 'day_to_day' | 'il_10' | 'il_15' | 'il_60';
@@ -95,15 +95,11 @@ export interface Player {
   draftRound?: number;
   draftPick?: number;
   draftedBy?: string;
-  // Aging + retirement
   retired?: boolean;
-  retiredOn?: number;       // season retired
-  // Awards & honors
+  retiredOn?: number;
   awards?: { season: number; type: AwardType; league?: League }[];
   hallOfFame?: { inducted: number };
-  // Career production summary (filled by aging/awards engine over time)
-  careerHigh?: number;       // best OVR ever achieved
-  // Hot/cold streak modifier (-8 to +8); drifts weekly during regular season
+  careerHigh?: number;
   streakMod?: number;
 }
 
@@ -115,11 +111,10 @@ export interface Ledger {
   attendance: number; homeGames: number;
   postseasonRev?: number;
   signingBonuses?: number;
-  // Revenue-sharing & CBT lines (computed at season finalization)
-  cbtTax?: number;             // luxury tax paid (expense)
-  revShareIn?: number;          // revenue sharing received (revenue)
-  revShareOut?: number;         // revenue sharing contributed (expense)
-  ownerInjection?: number;      // owner capital injection (revenue, increases debt)
+  cbtTax?: number;
+  revShareIn?: number;
+  revShareOut?: number;
+  ownerInjection?: number;
 }
 
 export interface FinanceHistoryEntry {
@@ -293,7 +288,7 @@ export interface Coach {
   franchiseId: string | null;
   championships: number;
   history: { season: number; franchiseId: string; record?: string; result?: string }[];
-  style?: ManagerStyle;       // only meaningful for manager role
+  style?: ManagerStyle;
 }
 
 export interface FranchiseCoaches {
@@ -302,20 +297,18 @@ export interface FranchiseCoaches {
   hitting_coach: string | null;
 }
 
-
 export interface DevelopmentRecord {
   playerId: string;
-  season: number;             // season the bump was applied (entering this season)
+  season: number;
   franchiseId: string;
-  coachId: string;             // coach who deserves credit
-  role: CoachRole;             // which role (pitching_coach or hitting_coach)
+  coachId: string;
+  role: CoachRole;
   prePotential: number;
   postPotential: number;
   preOverall: number;
   postOverall: number;
   ageAtBump: number;
 }
-
 
 export type AwardType = 'mvp' | 'cy_young' | 'rookie' | 'gold_glove' | 'silver_slugger' | 'mgr_of_year';
 
@@ -330,6 +323,64 @@ export interface SeasonObjective {
 export interface OwnerObjectives {
   season: number;
   objectives: SeasonObjective[];
+}
+
+export interface TeamSeasonRecord {
+  season: number;
+  wins: number;
+  losses: number;
+  payroll: number;
+  made_playoffs: boolean;
+  playoff_result?: 'wc_out' | 'ds_out' | 'lcs_out' | 'ws_loss' | 'champion';
+  champion?: boolean;
+  revenue?: number;
+  expenses?: number;
+  net?: number;
+  jobSecurityEnd?: number;
+}
+
+export interface IntlProspect {
+  id: string;
+  firstName: string;
+  lastName: string;
+  age: number;
+  nat: Nationality;
+  pos: Position;
+  isPitcher: boolean;
+  ratings: Ratings;
+  potential: number;
+  bonusAsk: number;
+  signedBy: string | null;
+  signedFor: number | null;
+}
+
+export interface IntlSigningState {
+  year: number;
+  prospects: IntlProspect[];
+  open: boolean;
+  closesOn: number;
+  pools: Record<string, number>;
+  poolsSpent: Record<string, number>;
+}
+
+export interface Rule5Eligible {
+  playerId: string;
+  signingTeamYears: number;
+  previousTeam: string;
+}
+
+export interface Rule5DraftState {
+  year: number;
+  eligible: string[];
+  order: string[];
+  picks: { franchiseId: string; playerId: string | null; previousFid: string }[];
+  complete: boolean;
+  currentPickIndex: number;
+}
+
+export interface TeamChemistry {
+  value: number;
+  leaders: string[];
 }
 
 export interface GameState {
@@ -361,16 +412,17 @@ export interface GameState {
   staffByFid?: Record<string, FranchiseCoaches>;
   coachPool?: string[];
   developmentHistory?: DevelopmentRecord[];
-  // Awards + HoF
   awardsBySeason?: Record<number, { type: AwardType; league?: League; playerId: string; coachId?: string }[]>;
-  // Objectives + job security
-  jobSecurity?: number;            // 0-100
+  jobSecurity?: number;
   ownerObjectives?: OwnerObjectives | null;
   fired?: boolean;
   jobSecurityHistory?: { season: number; security: number; objectives: SeasonObjective[] }[];
   userMadePlayoffs?: boolean;
-  // Settings
   settings?: { newsVerbosity: 'all' | 'team' | 'major'; autosave: boolean };
+  teamHistory?: Record<string, TeamSeasonRecord[]>;
+  intlSignings?: IntlSigningState | null;
+  rule5?: Rule5DraftState | null;
+  chemistry?: Record<string, TeamChemistry>;
 }
 
 export interface ExpansionConfig {

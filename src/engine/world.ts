@@ -1,7 +1,3 @@
-// ============================================================
-// World init + day advancement
-// ============================================================
-
 import { RNG } from './rng';
 import { FRANCHISES, resetFranchises } from './franchises';
 import {
@@ -28,6 +24,11 @@ import { ageAllPlayers } from './aging';
 import { setSeasonObjectives, evaluateObjectives } from './objectives';
 import { processHallOfFame } from './awards';
 import { updateWeeklyStreaks, resetStreaks } from './streaks';
+import {
+  startIntlSigningWindow, simAIIntlSigningBurst, closeIntlSigningWindow,
+} from './internationalSignings';
+import { startRule5Draft, autoCompleteRule5, simAIRule5Until } from './rule5';
+import { initChemistry, updateWeeklyChemistry, chemistrySeasonReset } from './chemistry';
 
 export function initWorld(
   seed: number,
@@ -105,7 +106,7 @@ export function initWorld(
     day: 0,
     season: 2026,
     headline: "Welcome to the Owner's Box",
-    body: `You've taken the reins of the ${userTeam.city} ${userTeam.name}. The board wishes you the best — and expects a return on their investment.`,
+    body: `You've taken the reins of the ${userTeam.city} ${userTeam.name}. The board wishes you the best.`,
     category: 'team',
   }];
 
@@ -115,7 +116,7 @@ export function initWorld(
       id: `n_exp_${Date.now()}`,
       day: 0,
       season: 2026,
-      headline: 'League expands to 32 clubs — two new franchises unveiled',
+      headline: 'League expands to 32 clubs - two new franchises unveiled',
       body: `The ${userTeam.city} ${userTeam.name} and ${autoTeam.city} ${autoTeam.name} join the league as expansion franchises, balancing divisions at six clubs each.`,
       category: 'league',
     });
@@ -148,13 +149,12 @@ export function initWorld(
     freeAgency: null,
   };
   initCoaches(initial, rng);
+  initChemistry(initial);
 
-  // Run the expansion draft so new teams pick real players from existing rosters.
   if (expansionConfig && autoTeamFid) {
     runExpansionDraft(initial, [userFid, autoTeamFid], rng);
   }
 
-  // Initial job security and objectives for season 1
   initial.jobSecurity = 50;
   initial.fired = false;
   initial.ownerObjectives = setSeasonObjectives(initial);
@@ -173,18 +173,6 @@ function newSeasonReset(state: GameState, rng: RNG) {
   state.byDay = byDay;
 }
 
-/**
- * Advance the simulation by one day. Phase transitions handled inside.
- *
- * Offseason calendar (relative day numbers):
- *   day -120 → day 0    Offseason
- *   day -100 → day -10  FA window open
- *   day -45             Amateur draft fires
- *   day -10             FA window closes
- *   day 1   → day 183    Regular season
- *   day 184+            Postseason (until champion)
- *   on champ → day -120  Next offseason
- */
 export function advanceDay(state: GameState): GameState {
   let newState: GameState = { ...state };
   const rng = new RNG(newState.rngState);
@@ -219,10 +207,9 @@ export function advanceDay(state: GameState): GameState {
 
     if (newState.day > 0 && newState.day % 7 === 0) {
       updateWeeklyStreaks(newState, rng);
+      updateWeeklyChemistry(newState, rng);
     }
 
-    // Mid-season manager firings — once per season at day 100, AI teams below
-    // .350 with no playoff hope fire their manager.
     if (newState.day === 100) {
       for (const fid of Object.keys(FRANCHISES)) {
         if (fid === newState.userFranchiseId) continue;
@@ -234,7 +221,6 @@ export function advanceDay(state: GameState): GameState {
           const mgrId = newState.staffByFid?.[fid]?.manager;
           if (mgrId) {
             fireCoach(newState, mgrId);
-            // Bring in an interim manager from the pool, or generate a fresh one
             const interimCandidate = (newState.coachPool || [])
               .map((id) => newState.coaches![id])
               .filter((c) => c && c.role === 'manager')
@@ -272,6 +258,41 @@ export function advanceDay(state: GameState): GameState {
     if (newState.day === -10 && newState.freeAgency?.open) {
       closeFreeAgencyWindow(newState);
     }
+
+    // International signing window: day -90 open, -50 close
+    if (newState.day === -90 && !newState.intlSignings) {
+      startIntlSigningWindow(newState, rng);
+    }
+    if (newState.intlSignings?.open) {
+      simAIIntlSigningBurst(newState, rng);
+    }
+    if (newState.day === -50 && newState.intlSignings?.open) {
+      closeIntlSigningWindow(newState);
+    }
+
+    // Rule 5 draft: day -20
+    if (newState.day === -20 && !newState.rule5) {
+      newState.rule5 = startRule5Draft(newState, rng);
+      newState.news.unshift({
+        id: `r5_open_${newState.season}`,
+        day: newState.day,
+        season: newState.season,
+        headline: `${newState.season} Rule 5 draft begins`,
+        body: `${newState.rule5.eligible.length} prospects exposed league-wide.`,
+        category: 'draft',
+      });
+    }
+    if (newState.rule5 && !newState.rule5.complete) {
+      simAIRule5Until(newState, rng);
+      if (newState.gmDelegated) {
+        autoCompleteRule5(newState, rng);
+      }
+      // Force-complete by day -10 if user-pick is blocking the queue
+      if (newState.day >= -10 && !newState.rule5.complete) {
+        autoCompleteRule5(newState, rng);
+      }
+    }
+
     if (newState.day === -45 && !newState.draft) {
       newState.draft = startDraft(newState, rng, newState.season);
       newState.news.unshift({
@@ -291,7 +312,6 @@ export function advanceDay(state: GameState): GameState {
   if (newState.day === 184 && !newState.bracket) {
     newState.phase = 'postseason';
     newState.bracket = seedBracket(newState);
-    // Track playoff appearance for objectives evaluation
     newState.userMadePlayoffs =
       newState.bracket.seeds.AL.some((s) => s.id === newState.userFranchiseId) ||
       newState.bracket.seeds.NL.some((s) => s.id === newState.userFranchiseId);
@@ -301,7 +321,7 @@ export function advanceDay(state: GameState): GameState {
       id: `seeds_${newState.season}`,
       day: newState.day,
       season: newState.season,
-      headline: `Playoff field set — ${alSeeds[0].wins} wins tops AL, ${nlSeeds[0].wins} tops NL`,
+      headline: `Playoff field set - ${alSeeds[0].wins} wins tops AL, ${nlSeeds[0].wins} tops NL`,
       body: `AL: ${alSeeds.map((s) => `${FRANCHISES[s.id].abbr} (${s.seed})`).join(', ')}. NL: ${nlSeeds.map((s) => `${FRANCHISES[s.id].abbr} (${s.seed})`).join(', ')}.`,
       category: 'league',
     }, ...newState.news];
@@ -331,10 +351,8 @@ export function advanceDay(state: GameState): GameState {
           const coachId = newState.staffByFid?.[p.franchiseId]?.[role];
           const prePotential = p.potential;
           const preOverall = p.ratings.overall;
-          p.potential = Math.min(80, Math.round(p.potential + bonus));
+          p.potential = Math.min(99, Math.round(p.potential + bonus));
           p.ratings.overall = Math.min(p.potential, p.ratings.overall + Math.round(bonus * 0.4));
-          // Only record records where the bump actually moved the rating —
-          // sub-integer bonuses can round away to nothing.
           const moved = p.potential > prePotential || p.ratings.overall > preOverall;
           if (coachId && moved) {
             newState.developmentHistory = newState.developmentHistory || [];
@@ -362,26 +380,21 @@ export function advanceDay(state: GameState): GameState {
     rolloverCoaches(newState, rng);
     resetStreaks(newState);
 
-    // Track expansion-team age — used for revenue/FA handicaps
     for (const fid of Object.keys(FRANCHISES)) {
       if (FRANCHISES[fid].expansion !== undefined) {
         FRANCHISES[fid].seasonsActive = (FRANCHISES[fid].seasonsActive || 0) + 1;
       }
     }
 
-    // Aging: vets decline, late bloomers spike, retirements fire
     ageAllPlayers(newState, rng);
-
-    // Evaluate previous-season objectives BEFORE setting new ones
     evaluateObjectives(newState);
-
-    // Hall of Fame voting (retirees past cooldown)
     processHallOfFame(newState);
-
-    // Set new objectives for the upcoming season
     newState.ownerObjectives = setSeasonObjectives(newState);
 
     newState.draft = null;
+    newState.intlSignings = null;
+    newState.rule5 = null;
+    chemistrySeasonReset(newState);
   }
 
   newState.rngState = rng.state;

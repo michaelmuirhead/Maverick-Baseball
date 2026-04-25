@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import type { ExpansionConfig, GameState } from '../engine/types';
 import { initWorld, advanceDay, advanceToMilestone } from '../engine/world';
-import { executeTrade } from '../engine/trades';
+import { executeTrade, executeTradeWithCash } from '../engine/trades';
+import { userSignIntlProspect } from '../engine/internationalSignings';
+import { userRule5Pick, autoCompleteRule5 } from '../engine/rule5';
 import { autoCompleteDraft, makePick, autoPickUntilUser } from '../engine/draft';
 import { userPlaceBid, signFreeAgent } from '../engine/freeAgency';
 import { fireCoach, signCoach } from '../engine/coaches';
@@ -14,7 +16,8 @@ export type View = 'splash' | 'new_game' | 'game';
 export type Page =
   | 'dashboard' | 'roster' | 'finances' | 'standings' | 'schedule'
   | 'trades' | 'playoffs' | 'stadium' | 'news'
-  | 'injured_list' | 'draft' | 'free_agency' | 'staff' | 'awards' | 'player_career' | 'settings';
+  | 'injured_list' | 'draft' | 'free_agency' | 'staff' | 'awards' | 'player_career' | 'settings'
+  | 'history' | 'prospects' | 'international' | 'rule5';
 
 interface Store {
   view: View;
@@ -40,7 +43,10 @@ interface Store {
   advanceOne: () => void;
   advanceTo: (milestone: string) => void;
 
-  executeTradeAction: (fromFid: string, toFid: string, fromIds: string[], toIds: string[]) => void;
+  executeTradeAction: (fromFid: string, toFid: string, fromIds: string[], toIds: string[], fromCash?: number, toCash?: number) => void;
+  signIntlAction: (prospectId: string, bonus: number) => { ok: boolean; reason?: string };
+  rule5PickAction: (playerId: string) => void;
+  rule5AutoComplete: () => void;
   setTicketPrice: (fid: string, price: number) => void;
   setPremiumPrice: (fid: string, price: number) => void;
   setParkingPrice: (fid: string, price: number) => void;
@@ -106,12 +112,40 @@ export const useGame = create<Store>((set, get) => ({
     saveGame(next);
   },
 
-  executeTradeAction: (fromFid, toFid, fromIds, toIds) => {
+  executeTradeAction: (fromFid, toFid, fromIds, toIds, fromCash, toCash) => {
     const s = get().state;
     if (!s) return;
-    const next = executeTrade(s, fromFid, toFid, fromIds, toIds);
+    const hasCash = (fromCash && fromCash > 0) || (toCash && toCash > 0);
+    const next = hasCash
+      ? executeTradeWithCash(s, fromFid, toFid, fromIds, toIds, fromCash || 0, toCash || 0)
+      : executeTrade(s, fromFid, toFid, fromIds, toIds);
     set({ state: next });
     saveGame(next);
+  },
+
+  signIntlAction: (prospectId, bonus) => {
+    const s = get().state;
+    if (!s) return { ok: false, reason: 'no game' };
+    const r = userSignIntlProspect(s, prospectId, bonus);
+    set({ state: { ...s } });
+    saveGame(s);
+    return r;
+  },
+  rule5PickAction: (playerId) => {
+    const s = get().state;
+    if (!s || !s.rule5) return;
+    userRule5Pick(s, playerId);
+    set({ state: { ...s } });
+    saveGame(s);
+  },
+  rule5AutoComplete: () => {
+    const s = get().state;
+    if (!s || !s.rule5) return;
+    const rng = new RNG(s.rngState);
+    autoCompleteRule5(s, rng);
+    s.rngState = rng.state;
+    set({ state: { ...s } });
+    saveGame(s);
   },
 
   setTicketPrice: (fid, price) => {

@@ -11,6 +11,9 @@ const PAGES: { id: Page; label: string }[] = [
   { id: 'trades', label: 'Trades' },
   { id: 'free_agency', label: 'Free Agency' },
   { id: 'draft', label: 'Draft' },
+  { id: 'international', label: 'Intl' },
+  { id: 'rule5', label: 'Rule 5' },
+  { id: 'prospects', label: 'Prospects' },
   { id: 'injured_list', label: 'Injured List' },
   { id: 'standings', label: 'Standings' },
   { id: 'schedule', label: 'Schedule' },
@@ -19,6 +22,7 @@ const PAGES: { id: Page; label: string }[] = [
   { id: 'stadium', label: 'Stadium' },
   { id: 'news', label: 'News' },
   { id: 'awards', label: 'Awards' },
+  { id: 'history', label: 'History' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -33,13 +37,13 @@ export function Shell({ children }: { children: ReactNode }) {
     <div style={S.shell}>
       <header style={S.masthead}>
         <div style={S.mastheadInner}>
-          <div style={S.mastheadMeta}>VOL. {state.season - 2025} · NO. {state.day < 0 ? `OFF-${Math.abs(state.day)}` : state.day}</div>
+          <div style={S.mastheadMeta}>VOL. {state.season - 2025} &middot; NO. {state.day < 0 ? `OFF-${Math.abs(state.day)}` : state.day}</div>
           <div>
             <div style={S.mastheadTitle}>Maverick Baseball</div>
             <div style={S.mastheadSub}>The Front-Office Broadsheet</div>
           </div>
           <div style={{ ...S.mastheadMeta, textAlign: 'right' }}>
-            {userTeam.city} {userTeam.name} · {standing.wins}–{standing.losses} · {fmtShort(fin.teamCash)}
+            {userTeam.city} {userTeam.name} &middot; {standing.wins}-{standing.losses} &middot; {fmtShort(fin.teamCash)}
           </div>
         </div>
       </header>

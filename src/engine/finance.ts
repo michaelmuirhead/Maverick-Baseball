@@ -3,15 +3,12 @@ import type { Finance, Franchise, GameState, Ledger } from './types';
 import { MARKETS } from './markets';
 import { FRANCHISES } from './franchises';
 import { awardSeason } from './awards';
+import { recordSeasonForAllTeams } from './teamHistory';
 
-export const CBT_TIER1 = 237_000_000;     // 20% on overage above this
-export const CBT_TIER2 = 257_000_000;     // +32% on overage above this
-export const CBT_TIER3 = 277_000_000;     // +62.5% on overage above this
-
-// Revenue sharing — top half of teams by revenue contribute, bottom half receive.
-export const REV_SHARE_RATE = 0.05;       // 5% of revenue from contributors
-
-// Owner financing — when team cash drops below this, owner injects.
+export const CBT_TIER1 = 237_000_000;
+export const CBT_TIER2 = 257_000_000;
+export const CBT_TIER3 = 277_000_000;
+export const REV_SHARE_RATE = 0.05;
 export const OWNER_INJECT_THRESHOLD = -50_000_000;
 export const OWNER_INJECT_MAX = 200_000_000;
 
@@ -44,8 +41,6 @@ export function genFinance(rng: RNG, franchise: Franchise): Finance {
   const premiumPrice = Math.round(ticketPrice * rng.float(3.5, 5.5));
   const parkingPrice = Math.round(15 * tierMult);
 
-  // CALIBRATED: working capital is now realistic. Real MLB clubs hold $80M-$200M
-  // cash reserves to handle seasonal cashflow + offseason FA spending.
   const cashByTier = ({
     mega:  () => rng.int(120_000_000, 200_000_000),
     large: () => rng.int(100_000_000, 160_000_000),
@@ -57,7 +52,6 @@ export function genFinance(rng: RNG, franchise: Franchise): Finance {
   const debt = rng.chance(0.7) ? rng.int(50_000_000, 400_000_000) : 0;
 
   const approxRev = tv + nameRights + sponsors + ticketPrice * franchise.cap * 70 + 75_000_000;
-  // CALIBRATED: franchise valuation multipliers up so mega markets hit ~$5-8B
   const valMult = ({ mega: 9.5, large: 7.0, mid: 5.0, small: 3.8 } as const)[market.tier];
   const value = Math.round(approxRev * valMult);
 
@@ -94,7 +88,6 @@ export function gameDayRev(
   const parkAppeal = 0.9 + franchise.amen * 0.03;
   let demand = recordFactor * loyaltyFactor * seasonArc * parkAppeal;
   if (rivalry) demand *= 1.15;
-  // Expansion handicap: brand-new teams pull smaller crowds for first 3 seasons.
   if (franchise.expansion && (franchise.seasonsActive ?? 0) < 3) {
     demand *= 0.85;
   }
@@ -140,14 +133,6 @@ export function applyAccruals(state: GameState) {
   }
 }
 
-/**
- * Compute luxury tax owed on a given annual payroll. Tiered marginal rates:
- *   0% up to $237M
- *   20% on overage from $237M-$257M
- *   +12% (32% total marginal) on overage from $257M-$277M
- *   +30.5% (62.5% total marginal) on overage above $277M
- * Returns the dollar tax owed.
- */
 export function computeLuxuryTax(annualPayroll: number): number {
   if (annualPayroll <= CBT_TIER1) return 0;
   let tax = 0;
@@ -164,25 +149,11 @@ export function computeLuxuryTax(annualPayroll: number): number {
   return Math.round(tax);
 }
 
-/**
- * Finalize a season: assess CBT, distribute revenue sharing, run owner financing,
- * roll TV deals, write history.
- *
- * Order of operations matters:
- *   1. Compute provisional revenue/expenses per team (excluding rev share)
- *   2. Assess CBT from end-of-season payroll → adds to expenses
- *   3. Top half by revenue contribute REV_SHARE_RATE × revenue → out
- *   4. Pool = sum of contributions + sum of CBT
- *   5. Pool distributed equally to bottom half by revenue → in
- *   6. Owner financing for any team still underwater
- *   7. Apply final net to teamCash, write history, reset ledgers, roll TV deals
- */
 export function finalizeSeason(state: GameState, rng: RNG) {
-  // Compute season awards before histories are written
   awardSeason(state);
+  recordSeasonForAllTeams(state);
   const fids = Object.keys(state.finances);
 
-  // --- Step 1: provisional revenue/expense (no rev share yet) ---
   type SeasonRecord = {
     fid: string;
     revenue: number;
@@ -194,7 +165,6 @@ export function finalizeSeason(state: GameState, rng: RNG) {
   for (const fid of fids) {
     const fin = state.finances[fid];
     const l = fin.ledger;
-    // End-of-season payroll for CBT (use roster's annual salaries summed)
     const payroll = state.rosters[fid].reduce(
       (s, pid) => s + (state.players[pid]?.contract?.salary || 0), 0,
     );
@@ -212,26 +182,21 @@ export function finalizeSeason(state: GameState, rng: RNG) {
     provisional.push({ fid, revenue, expenses, payroll, cbtTax });
   }
 
-  // --- Step 2: revenue sharing pool ---
-  // Sort by revenue, top 15 contribute, bottom 15 receive
   const sortedByRev = [...provisional].sort((a, b) => b.revenue - a.revenue);
   const half = Math.floor(sortedByRev.length / 2);
   const contributors = sortedByRev.slice(0, half);
   const recipients = sortedByRev.slice(half);
 
   let pool = 0;
-  // Contributors pay 5% of revenue
   for (const r of contributors) {
     const out = Math.round(r.revenue * REV_SHARE_RATE);
     state.finances[r.fid].ledger.revShareOut = out;
     r.expenses += out;
     pool += out;
   }
-  // CBT taxes also flow into pool
   for (const r of provisional) {
     pool += r.cbtTax;
   }
-  // Distribute equally among recipients
   if (recipients.length > 0) {
     const share = Math.round(pool / recipients.length);
     for (const r of recipients) {
@@ -240,22 +205,19 @@ export function finalizeSeason(state: GameState, rng: RNG) {
     }
   }
 
-  // --- Step 3: apply nets and run owner financing ---
   for (const r of provisional) {
     const fin = state.finances[r.fid];
     const net = r.revenue - r.expenses;
     fin.teamCash += net;
 
-    // Owner injection: if cash dropped below threshold, owner pumps in funds
     let injected = 0;
     if (fin.teamCash < OWNER_INJECT_THRESHOLD && fin.ownerCash > 0) {
-      // Inject up to OWNER_INJECT_MAX or whatever brings cash to +$30M
       const needed = Math.min(OWNER_INJECT_MAX, 30_000_000 - fin.teamCash, fin.ownerCash);
       if (needed > 0) {
         injected = needed;
         fin.teamCash += injected;
         fin.ownerCash -= injected;
-        fin.debt += injected;             // recorded as debt (owner expects repayment)
+        fin.debt += injected;
         fin.ledger.ownerInjection = injected;
 
         const f = FRANCHISES[r.fid];
@@ -274,7 +236,7 @@ export function finalizeSeason(state: GameState, rng: RNG) {
 
     fin.history.push({
       year: state.season,
-      revenue: r.revenue + injected,        // include injection in totals shown
+      revenue: r.revenue + injected,
       expenses: r.expenses,
       net: r.revenue - r.expenses + injected,
       endingCash: fin.teamCash,
@@ -290,7 +252,6 @@ export function finalizeSeason(state: GameState, rng: RNG) {
       fin.tvValue = Math.round(base * modifier * rng.float(0.95, 1.1));
       fin.tvYearsLeft = rng.int(6, 10);
     }
-    // Updated franchise value with new multipliers
     const valMult = ({ mega: 9.5, large: 7.0, mid: 5.0, small: 3.8 } as const)[MARKETS[FRANCHISES[r.fid].market].tier];
     fin.franchiseValue = Math.round(
       r.revenue * valMult + FRANCHISES[r.fid].champ * 30_000_000 - fin.debt,

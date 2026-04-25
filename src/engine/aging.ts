@@ -77,8 +77,8 @@ export function ageAllPlayers(state: GameState, rng: RNG): { aged: number; retir
     // Late-bloomer rule: very young players sometimes spike (rare, 2% chance for age 24-26)
     if (!p.isPitcher && p.age >= 24 && p.age <= 26 && rng.chance(0.02)) {
       const bump = rng.int(2, 5);
-      p.ratings.overall = Math.min(80, p.ratings.overall + bump);
-      p.potential = Math.min(80, Math.max(p.potential, p.ratings.overall));
+      p.ratings.overall = Math.min(99, p.ratings.overall + bump);
+      p.potential = Math.min(99, Math.max(p.potential, p.ratings.overall));
       bloomed++;
       if (p.franchiseId) {
         const f = FRANCHISES[p.franchiseId];

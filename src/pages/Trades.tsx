@@ -12,6 +12,8 @@ export function Trades() {
   const [partner, setPartner] = useState<string>('');
   const [giving, setGiving] = useState<string[]>([]);
   const [receiving, setReceiving] = useState<string[]>([]);
+  const [givingCash, setGivingCash] = useState<number>(0);
+  const [receivingCash, setReceivingCash] = useState<number>(0);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [aiCounter, setAiCounter] = useState<string | null>(null);
 
@@ -27,10 +29,8 @@ export function Trades() {
   }
 
   function evaluate() {
-    if (!partner || giving.length === 0 || receiving.length === 0) return;
-    // From AI's perspective, "giving" = what AI sends (= our receiving),
-    //   "receiving" = what AI gets back (= our giving)
-    const r = evaluateTradeForAI(state!, partner, receiving, giving);
+    if (!partner || (giving.length === 0 && givingCash === 0) || (receiving.length === 0 && receivingCash === 0)) return;
+    const r = evaluateTradeForAI(state!, partner, receiving, giving, receivingCash, givingCash);
     setEvalResult(r);
     if (r.countering) {
       const counter = suggestCounter(state!, partner, userFid, receiving, giving, r);
@@ -39,9 +39,10 @@ export function Trades() {
   }
 
   function execute() {
-    if (!partner || giving.length === 0 || receiving.length === 0) return;
-    executeTradeAction(userFid, partner, giving, receiving);
-    setGiving([]); setReceiving([]); setEvalResult(null); setAiCounter(null);
+    if (!partner || (giving.length === 0 && givingCash === 0) || (receiving.length === 0 && receivingCash === 0)) return;
+    executeTradeAction(userFid, partner, giving, receiving, givingCash, receivingCash);
+    setGiving([]); setReceiving([]); setGivingCash(0); setReceivingCash(0);
+    setEvalResult(null); setAiCounter(null);
   }
 
   return (
@@ -64,7 +65,7 @@ export function Trades() {
           onChange={(e) => { setPartner(e.target.value); setGiving([]); setReceiving([]); setEvalResult(null); }}
           style={{ width: 260, padding: 8, fontFamily: 'inherit', border: `1px solid ${COLORS.ink}`, background: COLORS.panel }}
         >
-          <option value="">— Pick a team —</option>
+          <option value="">-- Pick a team --</option>
           {partnerOptions.map((id) => {
             const f = FRANCHISES[id];
             return <option key={id} value={id}>{f.city} {f.name}</option>;
@@ -93,7 +94,42 @@ export function Trades() {
         </div>
       )}
 
-      {partner && giving.length > 0 && receiving.length > 0 && (
+      {partner && (
+        <div style={{ marginTop: 16, ...S.panel }}>
+          <div style={S.panelTitle}>Cash Considerations</div>
+          <div style={{ ...S.byline, marginBottom: 8 }}>
+            Up to $20M in cash may be attached in either direction.
+          </div>
+          <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={S.eyebrow}>You send cash:</span>
+              <input
+                type="number"
+                min={0}
+                max={20_000_000}
+                step={500_000}
+                value={givingCash}
+                onChange={(e) => setGivingCash(Math.max(0, Math.min(20_000_000, Number(e.target.value))))}
+                style={{ width: 140, padding: 6, fontFamily: "'IBM Plex Mono', monospace", border: `1px solid ${COLORS.ink}` }}
+              />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={S.eyebrow}>You receive cash:</span>
+              <input
+                type="number"
+                min={0}
+                max={20_000_000}
+                step={500_000}
+                value={receivingCash}
+                onChange={(e) => setReceivingCash(Math.max(0, Math.min(20_000_000, Number(e.target.value))))}
+                style={{ width: 140, padding: 6, fontFamily: "'IBM Plex Mono', monospace", border: `1px solid ${COLORS.ink}` }}
+              />
+            </label>
+          </div>
+        </div>
+      )}
+
+      {partner && ((giving.length > 0 || givingCash > 0) && (receiving.length > 0 || receivingCash > 0)) && (
         <div style={{ marginTop: 16, ...S.panelThick }}>
           <div style={S.panelTitle}>Evaluation</div>
           <button onClick={evaluate} style={{ ...S.radioBtn(true), background: COLORS.ink, marginRight: 8 }}>Run Evaluation</button>
@@ -107,10 +143,10 @@ export function Trades() {
                 fontFamily: "'DM Serif Display', serif", fontSize: 18,
                 color: evalResult.accepted ? COLORS.green : COLORS.red,
               }}>
-                {evalResult.accepted ? 'Accepted' : 'Rejected'} — {evalResult.reason}
+                {evalResult.accepted ? 'Accepted' : 'Rejected'} -- {evalResult.reason}
               </div>
               <div style={{ ...S.byline, fontSize: 13 }}>
-                Their TVS evaluation: send {evalResult.givingValue} → receive {evalResult.receivingValue}
+                Their TVS evaluation: send {evalResult.givingValue} &rarr; receive {evalResult.receivingValue}
               </div>
               {aiCounter && (
                 <div style={{ marginTop: 8 }}>
@@ -175,7 +211,7 @@ function PlayerPickList({
                 {toScout(p.ratings.overall)}
               </span>
               <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.inkDim, width: 60, textAlign: 'right' }}>
-                {p.contract ? fmtShort(p.contract.salary) : '—'}
+                {p.contract ? fmtShort(p.contract.salary) : '--'}
               </span>
               <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, width: 30, textAlign: 'right' }}>
                 {tradeValue(p)}
