@@ -26,6 +26,9 @@ import { Rule5 } from './pages/Rule5';
 import { Minors } from './pages/Minors';
 import { LiveGame } from './pages/LiveGame';
 import { Leaderboards } from './pages/Leaderboards';
+import { LineupBuilder } from './pages/LineupBuilder';
+import { DepthChartBuilder } from './pages/DepthChartBuilder';
+import { RosterManagement } from './pages/RosterManagement';
 
 export default function App() {
   const { view, page, hasSavedGame, loadFromStorage, state } = useGame();
@@ -65,6 +68,9 @@ export default function App() {
     case 'minors': pageEl = <Minors />; break;
     case 'live_game': pageEl = <LiveGame />; break;
     case 'leaderboards': pageEl = <Leaderboards />; break;
+    case 'lineup': pageEl = <LineupBuilder />; break;
+    case 'depth_chart': pageEl = <DepthChartBuilder />; break;
+    case 'roster_management': pageEl = <RosterManagement />; break;
     default: pageEl = <Dashboard />;
   }
 

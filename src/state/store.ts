@@ -22,7 +22,8 @@ export type Page =
   | 'dashboard' | 'roster' | 'finances' | 'standings' | 'schedule'
   | 'trades' | 'playoffs' | 'stadium' | 'news'
   | 'injured_list' | 'draft' | 'free_agency' | 'staff' | 'awards' | 'player_career' | 'settings'
-  | 'history' | 'prospects' | 'international' | 'rule5' | 'minors' | 'live_game' | 'leaderboards';
+  | 'history' | 'prospects' | 'international' | 'rule5' | 'minors' | 'live_game' | 'leaderboards'
+  | 'lineup' | 'depth_chart' | 'roster_management';
 
 interface Store {
   view: View;
