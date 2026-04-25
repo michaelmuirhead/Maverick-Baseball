@@ -23,6 +23,8 @@ import { TeamHistory } from './pages/TeamHistory';
 import { Prospects } from './pages/Prospects';
 import { InternationalSignings } from './pages/InternationalSignings';
 import { Rule5 } from './pages/Rule5';
+import { Minors } from './pages/Minors';
+import { LiveGame } from './pages/LiveGame';
 
 export default function App() {
   const { view, page, hasSavedGame, loadFromStorage, state } = useGame();
@@ -59,6 +61,8 @@ export default function App() {
     case 'prospects': pageEl = <Prospects />; break;
     case 'international': pageEl = <InternationalSignings />; break;
     case 'rule5': pageEl = <Rule5 />; break;
+    case 'minors': pageEl = <Minors />; break;
+    case 'live_game': pageEl = <LiveGame />; break;
     default: pageEl = <Dashboard />;
   }
 

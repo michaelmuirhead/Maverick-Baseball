@@ -122,7 +122,7 @@ export function simAIFreeAgentBids(state: GameState, rng: RNG): GameState {
     const interestMult = 1 + Math.max(0, player.ratings.overall - 55) * 0.05;
 
     for (const fid of fids) {
-      if (!rng.chance(0.04 * interestMult)) continue;
+      if (!rng.chance(0.06 * interestMult)) continue;
 
       const philosophy = effectivePhilosophy(state, fid) as GMPhilosophy;
 
@@ -149,6 +149,9 @@ export function simAIFreeAgentBids(state: GameState, rng: RNG): GameState {
       if (FRANCHISES[fid].expansion && (FRANCHISES[fid].seasonsActive ?? 0) < 5) {
         aggressiveness *= 0.88;
       }
+      // Cash-rich teams bid harder
+      if (fin.teamCash > 300_000_000) aggressiveness *= 1.10;
+      if (fin.teamCash > 500_000_000) aggressiveness *= 1.05;
       let aav = Math.round(fairAAV * aggressiveness);
 
       const aavCap = Math.round(fin.teamCash * 0.12 + fin.ownerCash * 0.08);

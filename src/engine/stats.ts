@@ -48,9 +48,9 @@ export function generateHitterStats(p: Player, rng: RNG, teamRecord: { w: number
   // Runs scored - lineup-position dependent, approximate
   const teamWinPct = (teamRecord.w + teamRecord.l) > 0 ? teamRecord.w / (teamRecord.w + teamRecord.l) : 0.5;
   const R = Math.round((H - HR) * 0.42 + HR + rng.normal(0, 6) + (teamWinPct - 0.5) * 25);
-  const BB = Math.round(AB * (0.06 + (eye - 30) * 0.0017) + rng.normal(0, 4));
+  const BB = Math.round(AB * clamp(0.055 + (eye - 50) * 0.0014, 0.025, 0.165) + rng.normal(0, 4));
   // K rate: high power, low contact = more Ks
-  const kRate = clamp(0.16 + (power - 50) * 0.0019 - (contact - 50) * 0.0018, 0.07, 0.36);
+  const kRate = clamp(0.21 + (power - 50) * 0.0010 - (contact - 50) * 0.0022, 0.10, 0.32);
   const SO = Math.round(AB * kRate + rng.normal(0, 6));
   const SB = Math.round(Math.max(0, (speed - 50) * 0.6 + rng.normal(0, 4)) * (G / 162));
 
@@ -93,11 +93,11 @@ export function generatePitcherStats(p: Player, rng: RNG, teamRecord: { w: numbe
   if (IP <= 0) return { G: 0, GS: 0, W: 0, L: 0, SV: 0, IP: 0, H: 0, ER: 0, BB: 0, SO: 0, HR: 0, ERA: 0, WHIP: 0 };
 
   // ERA target by rating: 50 ~ 4.50, 70 ~ 3.30, 85 ~ 2.40, 95 ~ 1.95
-  const era = clamp(7.5 - (ovr - 30) * 0.07 + rng.normal(0, 0.45), 1.4, 8.0);
+  const era = clamp(6.8 - (ovr - 30) * 0.062 + rng.normal(0, 0.40), 1.65, 7.0);
   const ER = Math.round(era * IP / 9);
 
   // WHIP target: rating 50 ~ 1.35, 70 ~ 1.18, 85 ~ 1.05, 95 ~ 0.95
-  const whip = clamp(1.65 - (ovr - 30) * 0.011 + rng.normal(0, 0.06), 0.85, 1.85);
+  const whip = clamp(1.55 - (ovr - 30) * 0.0093 + rng.normal(0, 0.05), 0.85, 1.70);
   const baserunners = Math.round(whip * IP);
   const BB = Math.round(baserunners * (0.32 + (60 - command) * 0.003) + rng.normal(0, 3));
   const H = Math.max(0, baserunners - BB);
@@ -105,7 +105,7 @@ export function generatePitcherStats(p: Player, rng: RNG, teamRecord: { w: numbe
   // K rate: scales with overall + breaking + fastball
   const fastball = p.ratings.fastball || ovr;
   const breaking = p.ratings.breaking || ovr;
-  const kPer9 = clamp(5 + ((fastball + breaking) / 2 - 40) * 0.13 + rng.normal(0, 0.6), 3, 14);
+  const kPer9 = clamp(6.5 + ((fastball + breaking) / 2 - 40) * 0.11 + rng.normal(0, 0.5), 4, 13);
   const SO = Math.round(IP * kPer9 / 9);
 
   const HR = Math.round(IP * clamp(1.5 - (ovr - 30) * 0.012, 0.4, 2.2) / 9 + rng.normal(0, 1));

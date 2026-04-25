@@ -1,11 +1,7 @@
 export type League = 'AL' | 'NL';
 export type Division = 'East' | 'Central' | 'West';
 
-export interface Market {
-  tier: 'mega' | 'large' | 'mid' | 'small';
-  loyalty: number;
-  corp: number;
-}
+export interface Market { tier: 'mega' | 'large' | 'mid' | 'small'; loyalty: number; corp: number; }
 
 export interface Franchise {
   abbr: string; city: string; name: string;
@@ -18,10 +14,7 @@ export interface Franchise {
 }
 
 export type Nationality = 'USA' | 'DOM' | 'VEN' | 'JPN' | 'CUB' | 'PRI' | 'MEX';
-
-export type Position =
-  | 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'DH'
-  | 'SP' | 'RP' | 'CL' | 'IF' | 'OF';
+export type Position = 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'DH' | 'SP' | 'RP' | 'CL' | 'IF' | 'OF';
 
 export interface HitterRatings {
   contact?: number; power?: number; eye?: number;
@@ -36,17 +29,12 @@ export interface PitcherRatings {
 export type Ratings = HitterRatings & PitcherRatings;
 
 export type ContractStatus = 'pre-arb' | 'arb' | 'extension' | 'fa';
-
-export interface Contract {
-  salary: number; years: number; status: ContractStatus;
-  serviceDays: number; ntc?: boolean;
-}
+export interface Contract { salary: number; years: number; status: ContractStatus; serviceDays: number; ntc?: boolean; }
 
 export interface Injury {
   type: string;
   severity: 'day_to_day' | 'il_10' | 'il_15' | 'il_60';
-  dayStarted: number; season: number;
-  recoversOn: number; ratingPenalty: number;
+  dayStarted: number; season: number; recoversOn: number; ratingPenalty: number;
 }
 
 export interface HitterStats {
@@ -55,19 +43,12 @@ export interface HitterStats {
   BB: number; SO: number; SB: number;
   AVG: number; OBP: number; SLG: number; OPS: number;
 }
-
 export interface PitcherStats {
   G: number; GS: number; W: number; L: number; SV: number;
   IP: number; H: number; ER: number; BB: number; SO: number; HR: number;
   ERA: number; WHIP: number;
 }
-
-export interface SeasonStats {
-  season: number;
-  franchiseId: string;
-  hitter?: HitterStats;
-  pitcher?: PitcherStats;
-}
+export interface SeasonStats { season: number; franchiseId: string; hitter?: HitterStats; pitcher?: PitcherStats; }
 
 export interface Player {
   id: string;
@@ -118,10 +99,7 @@ export interface Finance {
   history: FinanceHistoryEntry[];
 }
 
-export interface Standing {
-  wins: number; losses: number; rf: number; ra: number;
-  streak: number; l10: ('W' | 'L')[];
-}
+export interface Standing { wins: number; losses: number; rf: number; ra: number; streak: number; l10: ('W' | 'L')[]; }
 
 export interface Game {
   id: string; day: number; home: string; away: string; played: boolean;
@@ -162,44 +140,16 @@ export interface Bracket {
   _rolled?: boolean;
 }
 
-export interface DraftPick {
-  round: number; overall: number;
-  franchiseId: string; originalFid: string;
-  playerId: string | null; signed: boolean;
-  bonusPaid: number; year: number;
-}
-export interface DraftState {
-  year: number;
-  order: string[]; pool: string[];
-  picks: DraftPick[];
-  currentPickIndex: number; complete: boolean;
-  roundsTotal: number;
-  teamBonusPools: Record<string, number>;
-}
+export interface DraftPick { round: number; overall: number; franchiseId: string; originalFid: string; playerId: string | null; signed: boolean; bonusPaid: number; year: number; }
+export interface DraftState { year: number; order: string[]; pool: string[]; picks: DraftPick[]; currentPickIndex: number; complete: boolean; roundsTotal: number; teamBonusPools: Record<string, number>; }
 
-export interface FABid {
-  franchiseId: string;
-  aav: number; years: number; total: number;
-  philosophy: GMPhilosophy; dayPlaced: number;
-}
-export interface FAListing {
-  playerId: string;
-  asking: number; years: number;
-  bids: FABid[];
-  signedBy: string | null; signedOn: number | null;
-  declined: boolean; qualifyingOffer?: boolean;
-}
-export interface FreeAgencyState {
-  year: number;
-  listings: FAListing[];
-  open: boolean; closesOn: number;
-}
+export interface FABid { franchiseId: string; aav: number; years: number; total: number; philosophy: GMPhilosophy; dayPlaced: number; }
+export interface FAListing { playerId: string; asking: number; years: number; bids: FABid[]; signedBy: string | null; signedOn: number | null; declined: boolean; qualifyingOffer?: boolean; }
+export interface FreeAgencyState { year: number; listings: FAListing[]; open: boolean; closesOn: number; }
 
 export type ManagerStyle = 'small_ball' | 'analytical' | 'vet_friendly' | 'balanced';
 export type CoachRole = 'manager' | 'pitching_coach' | 'hitting_coach';
-
 export interface CoachContract { salary: number; years: number; signedOn: number; }
-
 export interface Coach {
   id: string;
   firstName: string; lastName: string; age: number;
@@ -211,34 +161,18 @@ export interface Coach {
   history: { season: number; franchiseId: string; record?: string; result?: string }[];
   style?: ManagerStyle;
 }
-
-export interface FranchiseCoaches {
-  manager: string | null;
-  pitching_coach: string | null;
-  hitting_coach: string | null;
-}
-
+export interface FranchiseCoaches { manager: string | null; pitching_coach: string | null; hitting_coach: string | null; }
 export interface DevelopmentRecord {
-  playerId: string; season: number;
-  franchiseId: string; coachId: string;
+  playerId: string; season: number; franchiseId: string; coachId: string;
   role: CoachRole;
-  prePotential: number; postPotential: number;
-  preOverall: number; postOverall: number;
+  prePotential: number; postPotential: number; preOverall: number; postOverall: number;
   ageAtBump: number;
 }
 
 export type AwardType = 'mvp' | 'cy_young' | 'rookie' | 'gold_glove' | 'silver_slugger' | 'mgr_of_year';
 
-export interface SeasonObjective {
-  id: 'wins' | 'playoffs' | 'profit' | 'attendance';
-  label: string; target: number;
-  actual?: number; achieved?: boolean;
-}
-
-export interface OwnerObjectives {
-  season: number;
-  objectives: SeasonObjective[];
-}
+export interface SeasonObjective { id: 'wins' | 'playoffs' | 'profit' | 'attendance'; label: string; target: number; actual?: number; achieved?: boolean; }
+export interface OwnerObjectives { season: number; objectives: SeasonObjective[]; }
 
 export interface TeamSeasonRecord {
   season: number; wins: number; losses: number;
@@ -255,27 +189,14 @@ export interface IntlProspect {
   firstName: string; lastName: string;
   age: number; nat: Nationality;
   pos: Position; isPitcher: boolean;
-  ratings: Ratings;
-  potential: number;
+  ratings: Ratings; potential: number;
   bonusAsk: number;
   signedBy: string | null;
   signedFor: number | null;
 }
+export interface IntlSigningState { year: number; prospects: IntlProspect[]; open: boolean; closesOn: number; pools: Record<string, number>; poolsSpent: Record<string, number>; }
 
-export interface IntlSigningState {
-  year: number;
-  prospects: IntlProspect[];
-  open: boolean; closesOn: number;
-  pools: Record<string, number>;
-  poolsSpent: Record<string, number>;
-}
-
-export interface Rule5Eligible {
-  playerId: string;
-  signingTeamYears: number;
-  previousTeam: string;
-}
-
+export interface Rule5Eligible { playerId: string; signingTeamYears: number; previousTeam: string; }
 export interface Rule5DraftState {
   year: number;
   eligible: string[];
@@ -285,10 +206,10 @@ export interface Rule5DraftState {
   currentPickIndex: number;
 }
 
-export interface TeamChemistry {
-  value: number;
-  leaders: string[];
-}
+export interface TeamChemistry { value: number; leaders: string[]; }
+
+export type MinorLevel = 'aaa' | 'aa' | 'a';
+export interface MinorRosters { aaa: string[]; aa: string[]; a: string[]; }
 
 export interface ChampionRecord {
   season: number;
@@ -338,6 +259,8 @@ export interface GameState {
   rule5?: Rule5DraftState | null;
   chemistry?: Record<string, TeamChemistry>;
   championHistory?: ChampionRecord[];
+  minorRosters?: Record<string, MinorRosters>;
+  springTraining?: { active: boolean; cutDeadline: number };
 }
 
 export interface ExpansionConfig {

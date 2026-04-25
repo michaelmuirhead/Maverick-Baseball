@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import type { ExpansionConfig, GameState } from '../engine/types';
+import type { ExpansionConfig, GameState, MinorLevel } from '../engine/types';
 import { initWorld, advanceDay, advanceToMilestone } from '../engine/world';
 import { executeTrade, executeTradeWithCash } from '../engine/trades';
 import { userSignIntlProspect } from '../engine/internationalSignings';
 import { userRule5Pick, autoCompleteRule5 } from '../engine/rule5';
+import { callUpFromMinors, sendDownToMinors } from '../engine/minors';
 import { autoCompleteDraft, makePick, autoPickUntilUser } from '../engine/draft';
 import { userPlaceBid, signFreeAgent } from '../engine/freeAgency';
 import { fireCoach, signCoach } from '../engine/coaches';
@@ -17,7 +18,7 @@ export type Page =
   | 'dashboard' | 'roster' | 'finances' | 'standings' | 'schedule'
   | 'trades' | 'playoffs' | 'stadium' | 'news'
   | 'injured_list' | 'draft' | 'free_agency' | 'staff' | 'awards' | 'player_career' | 'settings'
-  | 'history' | 'prospects' | 'international' | 'rule5';
+  | 'history' | 'prospects' | 'international' | 'rule5' | 'minors' | 'live_game';
 
 interface Store {
   view: View;
@@ -26,41 +27,30 @@ interface Store {
   selectedPlayerId: string | null;
   setSelectedPlayerId: (id: string | null) => void;
   setState: (s: GameState) => void;
-
   setView: (v: View) => void;
   setPage: (p: Page) => void;
-
-  newGame: (
-    seed: number,
-    franchiseId: string,
-    scenario: 'normal' | 'turnaround' | 'expansion',
-    expansionConfig?: ExpansionConfig | null,
-  ) => void;
+  newGame: (seed: number, franchiseId: string, scenario: 'normal' | 'turnaround' | 'expansion', expansionConfig?: ExpansionConfig | null) => void;
   loadFromStorage: () => boolean;
   hasSavedGame: () => boolean;
   clearSavedGame: () => void;
-
   advanceOne: () => void;
   advanceTo: (milestone: string) => void;
-
   executeTradeAction: (fromFid: string, toFid: string, fromIds: string[], toIds: string[], fromCash?: number, toCash?: number) => void;
   signIntlAction: (prospectId: string, bonus: number) => { ok: boolean; reason?: string };
   rule5PickAction: (playerId: string) => void;
   rule5AutoComplete: () => void;
+  callUpAction: (playerId: string) => { ok: boolean; reason?: string };
+  sendDownAction: (playerId: string, targetLevel?: MinorLevel) => { ok: boolean; reason?: string };
   setTicketPrice: (fid: string, price: number) => void;
   setPremiumPrice: (fid: string, price: number) => void;
   setParkingPrice: (fid: string, price: number) => void;
-
   draftPick: (playerId: string) => void;
   draftAutoPickUntilUser: () => void;
   draftAutoComplete: () => void;
-
   faPlaceBid: (playerId: string, aav: number, years: number) => { ok: boolean; reason?: string };
   faAcceptBid: (playerId: string, fromFid: string) => void;
-
   toggleGmDelegated: () => void;
   toggleDelegateFA: () => void;
-
   hireCoach: (coachId: string, years: number, salary?: number) => void;
   toggleDelegateStaffHiring: () => void;
   fireCoachAction: (coachId: string) => { ok: boolean; buyout: number; reason?: string };
@@ -75,7 +65,6 @@ export const useGame = create<Store>((set, get) => ({
   selectedPlayerId: null,
   setSelectedPlayerId: (id) => set({ selectedPlayerId: id, page: id ? 'player_career' : get().page }),
   setState: (s) => { set({ state: s }); saveGame(s); },
-
   setView: (v) => set({ view: v }),
   setPage: (p) => set({ page: p }),
 
@@ -87,10 +76,7 @@ export const useGame = create<Store>((set, get) => ({
 
   loadFromStorage: () => {
     const s = loadGame();
-    if (s) {
-      set({ state: s, view: 'game', page: 'dashboard' });
-      return true;
-    }
+    if (s) { set({ state: s, view: 'game', page: 'dashboard' }); return true; }
     return false;
   },
 
@@ -147,6 +133,22 @@ export const useGame = create<Store>((set, get) => ({
     s.rngState = rng.state;
     set({ state: { ...s } });
     saveGame(s);
+  },
+  callUpAction: (playerId) => {
+    const s = get().state;
+    if (!s) return { ok: false, reason: 'no game' };
+    const r = callUpFromMinors(s, playerId);
+    set({ state: { ...s } });
+    saveGame(s);
+    return r;
+  },
+  sendDownAction: (playerId, targetLevel) => {
+    const s = get().state;
+    if (!s) return { ok: false, reason: 'no game' };
+    const r = sendDownToMinors(s, playerId, targetLevel);
+    set({ state: { ...s } });
+    saveGame(s);
+    return r;
   },
 
   setTicketPrice: (fid, price) => {
@@ -224,7 +226,6 @@ export const useGame = create<Store>((set, get) => ({
     set({ state: { ...s } });
     saveGame(s);
   },
-
   toggleDelegateFA: () => {
     const s = get().state;
     if (!s) return;
@@ -232,7 +233,6 @@ export const useGame = create<Store>((set, get) => ({
     set({ state: { ...s } });
     saveGame(s);
   },
-
   toggleDelegateStaffHiring: () => {
     const s = get().state;
     if (!s) return;

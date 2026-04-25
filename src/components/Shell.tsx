@@ -7,6 +7,7 @@ import { fmtShort, phaseLabel, seasonDate } from '../engine/format';
 const PAGES: { id: Page; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'roster', label: 'Roster' },
+  { id: 'minors', label: 'Minors' },
   { id: 'staff', label: 'Staff' },
   { id: 'trades', label: 'Trades' },
   { id: 'free_agency', label: 'Free Agency' },
@@ -17,6 +18,7 @@ const PAGES: { id: Page; label: string }[] = [
   { id: 'injured_list', label: 'Injured List' },
   { id: 'standings', label: 'Standings' },
   { id: 'schedule', label: 'Schedule' },
+  { id: 'live_game', label: 'Live' },
   { id: 'playoffs', label: 'Playoffs' },
   { id: 'finances', label: 'Finances' },
   { id: 'stadium', label: 'Stadium' },
@@ -37,13 +39,13 @@ export function Shell({ children }: { children: ReactNode }) {
     <div style={S.shell}>
       <header style={S.masthead}>
         <div style={S.mastheadInner}>
-          <div style={S.mastheadMeta}>VOL. {state.season - 2025} &middot; NO. {state.day < 0 ? `OFF-${Math.abs(state.day)}` : state.day}</div>
+          <div style={S.mastheadMeta}>VOL. {state.season - 2025} - NO. {state.day < 0 ? `OFF-${Math.abs(state.day)}` : state.day}</div>
           <div>
             <div style={S.mastheadTitle}>Maverick Baseball</div>
             <div style={S.mastheadSub}>The Front-Office Broadsheet</div>
           </div>
           <div style={{ ...S.mastheadMeta, textAlign: 'right' }}>
-            {userTeam.city} {userTeam.name} &middot; {standing.wins}-{standing.losses} &middot; {fmtShort(fin.teamCash)}
+            {userTeam.city} {userTeam.name} - {standing.wins}-{standing.losses} - {fmtShort(fin.teamCash)}
           </div>
         </div>
       </header>
