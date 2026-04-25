@@ -7,7 +7,9 @@
 // small markets 78+. Profit and attendance targets scale with revenue.
 
 import type { GameState, OwnerObjectives, SeasonObjective } from './types';
+import { generateGMJobOffers } from './gmCareer';
 import { FRANCHISES } from './franchises';
+import { RNG } from './rng';
 import { MARKETS } from './markets';
 
 const OBJECTIVE_REWARDS = { wins: 14, playoffs: 22, profit: 10, attendance: 8 } as const;
@@ -116,9 +118,14 @@ export function evaluateObjectives(state: GameState) {
     category: 'team',
   });
 
-  // Fire check
-  if (state.jobSecurity < 0 && !state.fired) {
+  // Fire check — only applies in GM mode. Owners (default) can't be fired:
+  // job security still tracks owner satisfaction but doesn't end your tenure.
+  const isGmMode = state.playMode === 'gm';
+  if (isGmMode && state.jobSecurity < 0 && !state.fired) {
     state.fired = true;
+    state.unemployedSince = state.season;
+    const rng = new RNG(state.rngState ^ 0xfeedface);
+    generateGMJobOffers(state, rng);
     state.news.unshift({
       id: `fired_${obj.season}`,
       day: state.day,
@@ -127,12 +134,23 @@ export function evaluateObjectives(state: GameState) {
       body: `After failing to deliver on the board's expectations, your tenure with the ${f.city} ${f.name} comes to an end. Final job security: ${state.jobSecurity}.`,
       category: 'team',
     });
+  } else if (!isGmMode && state.jobSecurity < 0) {
+    // Owner mode: clamp at 0 and log a "rough season" item but don't fire
+    state.jobSecurity = Math.max(0, state.jobSecurity);
+    state.news.unshift({
+      id: `disappointing_${obj.season}`,
+      day: state.day,
+      season: state.season,
+      headline: `${f.city} owner disappointed in season ${obj.season}`,
+      body: 'Stakeholders demand a turnaround. As owner you remain in charge - but the spotlight is hot.',
+      category: 'team',
+    });
   } else if (state.jobSecurity < 25 && !state.fired) {
     state.news.unshift({
       id: `warning_${obj.season}`,
       day: state.day,
       season: state.season,
-      headline: `Hot seat alert — ownership warns of potential dismissal`,
+      headline: `Hot seat alert - ownership warns of potential dismissal`,
       body: `Your job security has dropped to ${state.jobSecurity}/100. The board expects significant improvement next season.`,
       category: 'team',
     });

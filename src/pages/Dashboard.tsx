@@ -5,6 +5,8 @@ import { FRANCHISES } from '../engine/franchises';
 import { fmtShort, phaseLabel } from '../engine/format';
 import { teamStrength } from '../engine/sim';
 import { tradeWindowLabel } from '../engine/trades';
+import { ProspectDevSummary } from '../components/ProspectDevSummary';
+import { GMJobOffers } from '../components/GMJobOffers';
 
 export function Dashboard() {
   const { state } = useGame();
@@ -38,7 +40,9 @@ export function Dashboard() {
         <div style={S.sectionSub}>{phaseLabel(state.phase, state)} · {tradeWindowLabel(state)}</div>
       </div>
 
+      <GMJobOffers />
       <VacancyBanner />
+      <div style={{ marginBottom: 16 }}><ProspectDevSummary /></div>
       <ObjectivesWidget />
 
       <div style={{ ...grid('repeat(4, 1fr)'), marginBottom: 20 }}>
@@ -148,7 +152,7 @@ function ObjectivesWidget() {
         <div style={S.panelTitle}>Owner Objectives · Season {obj.season}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: COLORS.inkDim }}>
-            Job Security
+            {state.playMode === 'gm' ? 'Job Security' : 'Owner Satisfaction'}
           </span>
           <div style={{ width: 140, height: 10, background: 'rgba(26,24,20,0.1)', position: 'relative' }}>
             <div style={{ width: `${Math.max(0, Math.min(100, security))}%`, height: 10, background: securityColor }} />
@@ -164,7 +168,7 @@ function ObjectivesWidget() {
             <span style={{ fontFamily: "'IBM Plex Serif', serif", fontSize: 13 }}>{o.label}</span>
             {o.achieved !== undefined && (
               <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: o.achieved ? COLORS.green : COLORS.red, fontWeight: 600 }}>
-                {o.achieved ? '✓' : '✗'}
+                              {o.actual !== undefined ? `${o.actual}/${o.target}` : `target ${o.target}`} {o.achieved ? '✓' : '✗'}
               </span>
             )}
           </div>

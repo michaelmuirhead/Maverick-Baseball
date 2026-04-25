@@ -4,7 +4,7 @@ import { MARKETS } from './markets';
 import { FRANCHISES } from './franchises';
 import { awardSeason } from './awards';
 import { recordSeasonForAllTeams, recordChampion } from './teamHistory';
-import { generateSeasonStats } from './stats';
+// Stats now accrue per-game in sim.ts; no end-of-season generation needed.
 
 export const CBT_TIER1 = 237_000_000;
 export const CBT_TIER2 = 257_000_000;
@@ -155,7 +155,7 @@ export function finalizeSeason(state: GameState, rng: RNG) {
   awardSeason(state);
   recordChampion(state);
   recordSeasonForAllTeams(state);
-  generateSeasonStats(state, rng);
+  // (per-game stats already accumulated; nothing to do here)
   const fids = Object.keys(state.finances);
 
   type SeasonRecord = { fid: string; revenue: number; expenses: number; payroll: number; cbtTax: number; };

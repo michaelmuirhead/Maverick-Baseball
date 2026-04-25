@@ -260,16 +260,30 @@ export function executeTrade(
     news: [...state.news],
   };
 
-  for (const pid of fromPlayerIds) {
-    s.players[pid] = { ...s.players[pid], franchiseId: toFid };
-    s.rosters[fromFid] = s.rosters[fromFid].filter((x) => x !== pid);
-    s.rosters[toFid].push(pid);
+  function moveOne(s: GameState, pid: string, srcFid: string, dstFid: string) {
+    const wasActive = s.rosters[srcFid]?.includes(pid);
+    let level: 'aaa' | 'aa' | 'a' | null = null;
+    if (s.minorRosters?.[srcFid]) {
+      if (s.minorRosters[srcFid].aaa.includes(pid)) level = 'aaa';
+      else if (s.minorRosters[srcFid].aa.includes(pid)) level = 'aa';
+      else if (s.minorRosters[srcFid].a.includes(pid)) level = 'a';
+    }
+    s.players[pid] = { ...s.players[pid], franchiseId: dstFid };
+    if (wasActive) {
+      s.rosters[srcFid] = s.rosters[srcFid].filter((x) => x !== pid);
+      s.rosters[dstFid] = s.rosters[dstFid] || [];
+      if (!s.rosters[dstFid].includes(pid)) s.rosters[dstFid].push(pid);
+    } else if (level) {
+      const srcMin = s.minorRosters![srcFid];
+      srcMin[level] = srcMin[level].filter((x) => x !== pid);
+      s.minorRosters![dstFid] = s.minorRosters![dstFid] || { aaa: [], aa: [], a: [] };
+      const dstMin = s.minorRosters![dstFid];
+      if (!dstMin[level].includes(pid)) dstMin[level].push(pid);
+    }
   }
-  for (const pid of toPlayerIds) {
-    s.players[pid] = { ...s.players[pid], franchiseId: fromFid };
-    s.rosters[toFid] = s.rosters[toFid].filter((x) => x !== pid);
-    s.rosters[fromFid].push(pid);
-  }
+
+  for (const pid of fromPlayerIds) moveOne(s, pid, fromFid, toFid);
+  for (const pid of toPlayerIds) moveOne(s, pid, toFid, fromFid);
 
   const fromNames = fromPlayerIds.map((id) => `${s.players[id].firstName} ${s.players[id].lastName}`);
   const toNames = toPlayerIds.map((id) => `${s.players[id].firstName} ${s.players[id].lastName}`);

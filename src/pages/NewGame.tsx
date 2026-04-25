@@ -9,6 +9,7 @@ export function NewGame() {
   const { setView, newGame } = useGame();
 
   const [scenario, setScenario] = useState<'normal' | 'turnaround' | 'expansion'>('normal');
+  const [playMode, setPlayMode] = useState<'owner' | 'gm'>('owner');
   const [pickedFid, setPickedFid] = useState<string>('nyy');
   const [seed, setSeed] = useState<number>(Math.floor(Math.random() * 1e9));
   const [expansionCity, setExpansionCity] = useState<string>(EXPANSION_CITIES[0].city);
@@ -50,9 +51,9 @@ export function NewGame() {
         marketLoyalty: cityChoice.loyaltyBase,
         marketCorp: cityChoice.corp,
       };
-      newGame(seed, 'exp_user', 'expansion', config);
+      newGame(seed, 'exp_user', 'expansion', config, playMode);
     } else {
-      newGame(seed, pickedFid, scenario);
+      newGame(seed, pickedFid, scenario, null, playMode);
     }
   }
 
@@ -69,6 +70,28 @@ export function NewGame() {
         </div>
       </header>
       <main style={S.page}>
+        <h2 style={S.sectionHead}>Your Role</h2>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          {(['owner', 'gm'] as const).map((mode) => (
+            <button
+              key={mode}
+              style={{
+                ...S.radioBtn(playMode === mode),
+                background: playMode === mode ? COLORS.ink : 'transparent',
+                color: playMode === mode ? COLORS.cream : COLORS.ink,
+              }}
+              onClick={() => setPlayMode(mode)}
+            >
+              {mode === 'owner' ? 'Owner' : 'General Manager'}
+            </button>
+          ))}
+        </div>
+        <div style={{ ...S.byline, fontSize: 12, marginBottom: 20, maxWidth: 640 }}>
+          {playMode === 'owner'
+            ? "You own the team. You can't be fired — job security still tracks owner satisfaction, but you stay in charge through every season."
+            : "You're hired as GM. Miss enough owner objectives in a row and you can be terminated; other clubs may hire you afterwards."}
+        </div>
+
         <h2 style={S.sectionHead}>Scenario</h2>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
           {(['normal', 'turnaround', 'expansion'] as const).map((s) => (
@@ -156,28 +179,21 @@ export function NewGame() {
                   ))}
                 </div>
                 <p style={{ ...S.byline, marginTop: 16, fontSize: 13 }}>
-                  A second expansion team will be auto-generated in the opposite league's same division to keep the league balanced at 32 clubs (6 per division).
+                  A second expansion club fills the open slot in your division, balancing the league at 32 teams.
                 </p>
               </div>
             </div>
           </>
         )}
 
-        <div style={{ ...S.sectionRule, marginTop: 24 }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <label style={S.eyebrow}>Seed</label>
-          <input
-            type="number"
-            value={seed}
-            onChange={(e) => setSeed(parseInt(e.target.value, 10) || 0)}
-            style={{ width: 160, padding: 6, fontFamily: "'IBM Plex Mono', monospace", border: `1px solid ${COLORS.ink}`, background: COLORS.panel }}
-          />
-          <button onClick={() => setSeed(Math.floor(Math.random() * 1e9))} style={S.radioBtn(false)}>Reroll</button>
-          <div style={{ flex: 1 }} />
-          <button onClick={() => setView('splash')} style={S.radioBtn(false)}>← Back</button>
-          <button onClick={start} style={{ ...S.radioBtn(true), background: COLORS.red, borderColor: COLORS.red }}>
-            Start Career
+        <div style={{ display: 'flex', gap: 12, marginTop: 24, alignItems: 'center' }}>
+          <button onClick={start} style={{ ...S.radioBtn(true), background: COLORS.red, borderColor: COLORS.red, padding: '10px 24px' }}>
+            Start Season
           </button>
+          <button onClick={() => setView('splash')} style={S.radioBtn(false)}>Back</button>
+          <span style={{ ...S.byline, marginLeft: 'auto', fontSize: 11 }}>
+            Seed: {seed}
+          </span>
         </div>
       </main>
     </div>

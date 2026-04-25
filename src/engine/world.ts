@@ -29,15 +29,17 @@ import {
 import { startRule5Draft, autoCompleteRule5, simAIRule5Until } from './rule5';
 import { initChemistry, updateWeeklyChemistry, chemistrySeasonReset } from './chemistry';
 import {
-  initMinorRosters, maintainAIRoster, promoteMinorLeaguers, minorLeagueDevelopment,
+  initMinorRosters, maintainAIRoster, promoteMinorLeaguers, minorLeagueDevelopment, seedMinorLeagueFillers,
 } from './minors';
 import { startSpringTraining, executeCuts, ST_OPENS, ST_CLOSES } from './springTraining';
+import { maybeGenerateTradeRumor } from './tradeRumors';
 
 export function initWorld(
   seed: number,
   userFranchiseId: string,
   scenario: 'normal' | 'turnaround' | 'expansion',
   expansionConfig?: ExpansionConfig | null,
+  playMode: 'owner' | 'gm' = 'owner',
 ): GameState {
   resetPlayerIdCounter();
   resetFranchises();
@@ -137,6 +139,7 @@ export function initWorld(
   initCoaches(initial, rng);
   initChemistry(initial);
   initMinorRosters(initial);
+  seedMinorLeagueFillers(initial, rng);
 
   if (expansionConfig && autoTeamFid) {
     runExpansionDraft(initial, [userFid, autoTeamFid], rng);
@@ -144,6 +147,7 @@ export function initWorld(
 
   initial.jobSecurity = 50;
   initial.fired = false;
+  initial.playMode = playMode;
   initial.ownerObjectives = setSeasonObjectives(initial);
   initial.jobSecurityHistory = [];
 
@@ -181,10 +185,11 @@ export function advanceDay(state: GameState): GameState {
       if (!g.played) {
         g.result = simGame(rng, newState, g);
         g.played = true;
-        applyResult(newState, g);
+        applyResult(newState, g, rng);
       }
     }
     rollDailyInjuries(newState, rng);
+    maybeGenerateTradeRumor(newState, rng);
 
     if (newState.day > 0 && newState.day % 7 === 0) {
       updateWeeklyStreaks(newState, rng);
@@ -194,6 +199,10 @@ export function advanceDay(state: GameState): GameState {
         if (newState.rosters[fid].length < 24) {
           maintainAIRoster(newState, fid, rng);
         }
+      }
+      // User auto-replenishment when delegateRoster is on
+      if (newState.delegateRoster && newState.rosters[newState.userFranchiseId].length < 24) {
+        maintainAIRoster(newState, newState.userFranchiseId, rng);
       }
     }
 

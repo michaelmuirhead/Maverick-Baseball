@@ -62,14 +62,25 @@ function findMinorPlayer(state: GameState, pid: string): { fid: string; level: M
 }
 
 /** Promote a prospect from minors onto the active roster. */
+export const AAA_DEPTH_FLOOR = 15;
+
+/** Call up by ID, optionally enforcing the AAA depth floor. */
 export function callUpFromMinors(
   state: GameState,
   playerId: string,
+  opts: { enforceDepthFloor?: boolean } = {},
 ): { ok: boolean; reason?: string } {
   const found = findMinorPlayer(state, playerId);
   if (!found) return { ok: false, reason: 'Player not in minor leagues' };
   const p = state.players[playerId];
   if (!p) return { ok: false, reason: 'Unknown player' };
+
+  if (opts.enforceDepthFloor && found.level === 'aaa') {
+    const aaaCount = state.minorRosters![found.fid].aaa.length;
+    if (aaaCount <= AAA_DEPTH_FLOOR) {
+      return { ok: false, reason: `AAA depth floor reached (${AAA_DEPTH_FLOOR} min)` };
+    }
+  }
 
   state.minorRosters![found.fid][found.level] =
     state.minorRosters![found.fid][found.level].filter((id) => id !== playerId);
@@ -139,7 +150,7 @@ export function maintainAIRoster(state: GameState, fid: string, _rng: RNG) {
       .map((id) => state.players[id])
       .filter((p) => p && p.pos === pos)
       .sort((a, b) => b.ratings.overall - a.ratings.overall)[0];
-    if (candidate) callUpFromMinors(state, candidate.id);
+    if (candidate) callUpFromMinors(state, candidate.id, { enforceDepthFloor: true });
   }
   if (spCount < 5) {
     const need = 5 - spCount;
@@ -148,7 +159,7 @@ export function maintainAIRoster(state: GameState, fid: string, _rng: RNG) {
       .filter((p) => p && p.pos === 'SP')
       .sort((a, b) => b.ratings.overall - a.ratings.overall)
       .slice(0, need);
-    for (const sp of sps) callUpFromMinors(state, sp.id);
+    for (const sp of sps) callUpFromMinors(state, sp.id, { enforceDepthFloor: true });
   }
   if (rpCount < 5) {
     const need = 5 - rpCount;
@@ -157,7 +168,7 @@ export function maintainAIRoster(state: GameState, fid: string, _rng: RNG) {
       .filter((p) => p && (p.pos === 'RP' || p.pos === 'CL'))
       .sort((a, b) => b.ratings.overall - a.ratings.overall)
       .slice(0, need);
-    for (const rp of rps) callUpFromMinors(state, rp.id);
+    for (const rp of rps) callUpFromMinors(state, rp.id, { enforceDepthFloor: true });
   }
   // Top up to 26
   if (state.rosters[fid].length < 26) {
@@ -167,7 +178,7 @@ export function maintainAIRoster(state: GameState, fid: string, _rng: RNG) {
       .filter(Boolean)
       .sort((a, b) => b.ratings.overall - a.ratings.overall)
       .slice(0, slotsNeeded);
-    for (const p of best) callUpFromMinors(state, p.id);
+    for (const p of best) callUpFromMinors(state, p.id, { enforceDepthFloor: true });
   }
 }
 
@@ -231,4 +242,39 @@ export function minorRosterCounts(state: GameState, fid: string): { aaa: number;
   const m = state.minorRosters?.[fid];
   if (!m) return { aaa: 0, aa: 0, a: 0 };
   return { aaa: m.aaa.length, aa: m.aa.length, a: m.a.length };
+}
+
+
+import { genPlayer } from './players';
+import type { Position } from './types';
+
+const FILLER_POSITIONS: Position[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'SP', 'SP', 'RP', 'RP'];
+
+/**
+ * Generate ~36 minor-league filler players per franchise (12 per level) at
+ * world init so AAA depth floor has something to defend.
+ */
+export function seedMinorLeagueFillers(state: GameState, rng: import('./rng').RNG) {
+  for (const fid of Object.keys(state.minorRosters || {})) {
+    const minors = state.minorRosters![fid];
+    const targetByLevel: Record<MinorLevel, { count: number; ageRange: [number, number]; ovrPenalty: number }> = {
+      aaa: { count: 14, ageRange: [22, 26], ovrPenalty: 8 },
+      aa: { count: 14, ageRange: [20, 24], ovrPenalty: 14 },
+      a: { count: 16, ageRange: [18, 22], ovrPenalty: 20 },
+    };
+    for (const lvl of ['aaa', 'aa', 'a'] as MinorLevel[]) {
+      const t = targetByLevel[lvl];
+      while (minors[lvl].length < t.count) {
+        const pos = rng.pick(FILLER_POSITIONS);
+        const p = genPlayer(rng, fid, pos);
+        p.age = rng.int(t.ageRange[0], t.ageRange[1]);
+        p.ratings.overall = Math.max(25, p.ratings.overall - t.ovrPenalty);
+        p.prospect = true;
+        p.contract = null;
+        state.players[p.id] = p;
+        minors[lvl].push(p.id);
+        if (!state.prospects.includes(p.id)) state.prospects.push(p.id);
+      }
+    }
+  }
 }

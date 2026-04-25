@@ -8,6 +8,11 @@ export interface Franchise {
   lg: League; div: Division; color: string;
   market: string; park: string;
   cap: number; premium: number; pf: number; amen: number;
+  // Per-stat park factors. 100 = neutral. >100 favors hitters of that type.
+  pfHR?: number;
+  pfDouble?: number;
+  pfTriple?: number;
+  pfBABIP?: number;
   champ: number; pennants?: number;
   expansion?: boolean; secondaryColor?: string; state?: string;
   seasonsActive?: number;
@@ -16,16 +21,15 @@ export interface Franchise {
 export type Nationality = 'USA' | 'DOM' | 'VEN' | 'JPN' | 'CUB' | 'PRI' | 'MEX';
 export type Position = 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'DH' | 'SP' | 'RP' | 'CL' | 'IF' | 'OF';
 
-export interface HitterRatings {
-  contact?: number; power?: number; eye?: number;
-  speed?: number; fielding?: number; arm?: number;
-  overall: number;
-}
+export interface HitterRatings { contact?: number; power?: number; eye?: number; speed?: number; fielding?: number; arm?: number; overall: number; }
 export interface PitcherRatings {
   fastball?: number; breaking?: number; changeup?: number;
   command?: number; movement?: number; velo?: number; stamina?: number;
+  // Specific pitch types — pitchers carry 2-4 of these
+  curveball?: number; slider?: number; splitter?: number; cutter?: number; knuckleball?: number; sinker?: number;
   overall: number;
 }
+export type Handedness = 'L' | 'R' | 'S';     // S = switch (hitters only)
 export type Ratings = HitterRatings & PitcherRatings;
 
 export type ContractStatus = 'pre-arb' | 'arb' | 'extension' | 'fa';
@@ -42,13 +46,56 @@ export interface HitterStats {
   D: number; T: number; HR: number; RBI: number;
   BB: number; SO: number; SB: number;
   AVG: number; OBP: number; SLG: number; OPS: number;
+  // Advanced
+  BABIP?: number;
+  ISO?: number;
+  wOBA?: number;
+  OPSplus?: number;
+  WAR?: number;
+}
+
+export interface SplitLine {
+  AB: number; H: number; HR: number; BB: number; SO: number;
+  AVG: number; OBP: number; SLG: number; OPS: number;
+}
+
+export interface HitterSplits {
+  vsL?: SplitLine; vsR?: SplitLine;
+  home?: SplitLine; away?: SplitLine;
+  byMonth?: Record<number, SplitLine>;       // month index 1-6 (Apr-Sep)
+}
+
+export interface PitcherSplitLine {
+  IP: number; H: number; ER: number; BB: number; SO: number; HR: number;
+  ERA: number; WHIP: number;
+}
+
+export interface PitcherSplits {
+  vsL?: PitcherSplitLine; vsR?: PitcherSplitLine;
+  home?: PitcherSplitLine; away?: PitcherSplitLine;
+  byMonth?: Record<number, PitcherSplitLine>;
 }
 export interface PitcherStats {
   G: number; GS: number; W: number; L: number; SV: number;
   IP: number; H: number; ER: number; BB: number; SO: number; HR: number;
   ERA: number; WHIP: number;
+  // Advanced
+  FIP?: number;
+  ERAplus?: number;
+  WAR?: number;
+  K9?: number;
+  BB9?: number;
 }
-export interface SeasonStats { season: number; franchiseId: string; hitter?: HitterStats; pitcher?: PitcherStats; }
+export interface SeasonStats {
+  season: number;
+  franchiseId: string;
+  hitter?: HitterStats;
+  pitcher?: PitcherStats;
+  hitterSplits?: HitterSplits;
+  pitcherSplits?: PitcherSplits;
+  postseason?: { hitter?: HitterStats; pitcher?: PitcherStats };
+  pitcherFatigue?: { lastAppearanceDay: number; consecutiveDays: number; seasonIP: number };
+}
 
 export interface Player {
   id: string;
@@ -63,6 +110,8 @@ export interface Player {
   health: 'healthy' | 'day_to_day' | 'il_10' | 'il_15' | 'il_60';
   injury: Injury | null;
   prospect?: boolean;
+  bats?: Handedness;
+  throws?: Exclude<Handedness, 'S'>;
   draftYear?: number; draftRound?: number; draftPick?: number; draftedBy?: string;
   retired?: boolean; retiredOn?: number;
   awards?: { season: number; type: AwardType; league?: League }[];
@@ -223,6 +272,7 @@ export interface GameState {
   seed: number;
   userFranchiseId: string;
   scenario: 'normal' | 'turnaround' | 'expansion';
+  playMode?: 'owner' | 'gm';                  // default 'owner' — owners can't be fired
   day: number; season: number; phase: Phase;
   players: Record<string, Player>;
   rosters: Record<string, string[]>;
@@ -238,6 +288,7 @@ export interface GameState {
   gmDelegated: boolean;
   delegateStaffHiring?: boolean;
   delegateFA?: boolean;
+  delegateRoster?: boolean;
   draft?: DraftState | null;
   freeAgency?: FreeAgencyState | null;
   freeAgents: string[];
@@ -251,6 +302,8 @@ export interface GameState {
   jobSecurity?: number;
   ownerObjectives?: OwnerObjectives | null;
   fired?: boolean;
+  unemployedSince?: number;
+  gmJobOffers?: { franchiseId: string; reason: string; security: number }[];
   jobSecurityHistory?: { season: number; security: number; objectives: SeasonObjective[] }[];
   userMadePlayoffs?: boolean;
   settings?: { newsVerbosity: 'all' | 'team' | 'major'; autosave: boolean };
@@ -261,6 +314,8 @@ export interface GameState {
   championHistory?: ChampionRecord[];
   minorRosters?: Record<string, MinorRosters>;
   springTraining?: { active: boolean; cutDeadline: number };
+  // League-average stat anchors used by OPS+/ERA+ calc each season
+  leagueAverages?: Record<number, { OPS: number; ERA: number; AVG: number; OBP: number; SLG: number }>;
 }
 
 export interface ExpansionConfig {

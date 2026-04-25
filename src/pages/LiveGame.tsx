@@ -7,11 +7,13 @@ import {
   startLiveGame, simNextHalfInning, simFullLiveGame, describeAtbat,
   type LiveGameState,
 } from '../engine/liveGame';
+import { simGame, applyResult } from '../engine/sim';
 
 export function LiveGame() {
-  const { state, setPage } = useGame();
+  const { state, setPage, setState } = useGame();
   const [live, setLive] = useState<LiveGameState | null>(null);
   const [rngSeed] = useState(() => Math.floor(Math.random() * 1_000_000));
+  const [committed, setCommitted] = useState(false);
 
   if (!state) return null;
   const fid = state.userFranchiseId;
@@ -90,9 +92,40 @@ export function LiveGame() {
 
   const finish = () => {
     const rng = new RNG(rngSeed + 999);
-    const next = simFullLiveGame(state, state.schedule.find((g) => g.id === live.gameId)!, rng);
+    const sched = state.schedule.find((g) => g.id === live.gameId)!;
+    const next = simFullLiveGame(state, sched, rng);
     setLive(next);
   };
+
+  // Commit the live result into the actual game schedule + sim the rest of the
+  // day's slate in the background. Runs once when live.finished flips true.
+  if (live.finished && !committed && state) {
+    const game = state.schedule.find((g) => g.id === live.gameId);
+    if (game) {
+      const winner = (live.scoreHome > live.scoreAway) ? game.home : game.away;
+      const loser = winner === game.home ? game.away : game.home;
+      game.result = {
+        homeScore: live.scoreHome,
+        awayScore: live.scoreAway,
+        winner, loser,
+        attendance: 0,
+      };
+      game.played = true;
+      const rng = new RNG(rngSeed + 100);
+      applyResult(state, game, rng);
+      // Sim the rest of the day's games
+      for (const idx of (state.byDay[game.day] || [])) {
+        const g = state.schedule[idx];
+        if (g && !g.played) {
+          g.result = simGame(rng, state, g);
+          g.played = true;
+          applyResult(state, g, rng);
+        }
+      }
+      setState({ ...state });
+      setCommitted(true);
+    }
+  }
 
   return (
     <div>

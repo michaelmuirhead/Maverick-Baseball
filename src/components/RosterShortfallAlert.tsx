@@ -1,15 +1,11 @@
 import { S, COLORS } from '../styles/tokens';
 import { useGame } from '../state/store';
 
-const ACTIVE_TARGET = 22;          // healthy active players minimum
-const ROSTER_TARGET = 26;          // total roster size
+const ACTIVE_TARGET = 22;
+const ROSTER_TARGET = 26;
 
-/**
- * Banner shown when the user team's healthy active player count drops below
- * the threshold. Suggests calling up a prospect or signing a free agent.
- */
 export function RosterShortfallAlert() {
-  const { state, setPage } = useGame();
+  const { state, setPage, toggleDelegateRoster } = useGame();
   if (!state) return null;
   const fid = state.userFranchiseId;
   const roster = state.rosters[fid] || [];
@@ -18,12 +14,9 @@ export function RosterShortfallAlert() {
   const totalCount = players.length;
   const healthyCount = healthy.length;
 
-  // Position coverage check — at least one healthy hitter at each MLB position
   const POS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
   const missingPositions: string[] = [];
-  for (const p of POS) {
-    if (!healthy.some((pl) => pl.pos === p)) missingPositions.push(p);
-  }
+  for (const p of POS) if (!healthy.some((pl) => pl.pos === p)) missingPositions.push(p);
 
   const fewSP = healthy.filter((p) => p.pos === 'SP').length < 5;
   const fewRP = healthy.filter((p) => ['RP', 'CL'].includes(p.pos)).length < 5;
@@ -39,7 +32,6 @@ export function RosterShortfallAlert() {
   if (fewSP) issues.push(`Short on SP (${healthy.filter((p) => p.pos === 'SP').length}/5)`);
   if (fewRP) issues.push(`Short on RP (${healthy.filter((p) => ['RP', 'CL'].includes(p.pos)).length}/5)`);
 
-  // Find a callup candidate — best prospect on user team
   const callupCandidate = (state.prospects || [])
     .map((id) => state.players[id])
     .filter((p) => p && p.franchiseId === fid && !p.contract && p.age >= 19)
@@ -85,6 +77,17 @@ export function RosterShortfallAlert() {
               style={{ ...S.radioBtn(true), background: COLORS.gold, borderColor: COLORS.gold, fontSize: 11 }}
             >
               Open trade desk
+            </button>
+            <button
+              onClick={() => toggleDelegateRoster()}
+              style={{
+                ...S.radioBtn(!!state.delegateRoster),
+                background: state.delegateRoster ? COLORS.green : 'transparent',
+                color: state.delegateRoster ? COLORS.cream : COLORS.ink,
+                fontSize: 11,
+              }}
+            >
+              {state.delegateRoster ? 'Auto-fill: ON' : 'Let GM auto-fill'}
             </button>
           </div>
         </div>

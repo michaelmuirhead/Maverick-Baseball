@@ -73,6 +73,33 @@ export function Trades() {
         </select>
       </div>
 
+      {partner && state.minorRosters?.[partner] && (
+        <div style={{ ...S.panel, marginBottom: 16 }}>
+          <div style={S.panelTitle}>Scouting {FRANCHISES[partner].abbr} farm system</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 8 }}>
+            {(['aaa', 'aa', 'a'] as const).map((lvl) => {
+              const ids = state.minorRosters![partner][lvl] || [];
+              const sorted = ids
+                .map((id) => state.players[id])
+                .filter(Boolean)
+                .sort((a, b) => b.potential - a.potential)
+                .slice(0, 6);
+              return (
+                <div key={lvl}>
+                  <div style={{ ...S.eyebrow, marginBottom: 4 }}>{lvl.toUpperCase()} ({ids.length})</div>
+                  {sorted.map((p) => (
+                    <div key={p.id} style={{ fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", padding: '2px 0', color: COLORS.inkDim }}>
+                      <span style={{ color: COLORS.ink }}>{p.firstName} {p.lastName}</span>
+                      <span> {p.pos} OVR{toScout(p.ratings.overall)}/POT{toScout(p.potential)}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {partner && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <PlayerPickList

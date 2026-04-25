@@ -1,10 +1,11 @@
-import type { RNG } from './rng';
+import { RNG } from './rng';
 import type { Game, GameState } from './types';
 import { FRANCHISES } from './franchises';
 import { gameDayRev } from './finance';
 import { managerIntangibleBonus, computeTacticalContribution } from './coaches';
 import { effectiveOverall } from './streaks';
 import { chemistryMultiplier } from './chemistry';
+import { recordGameStats } from './perGameStats';
 
 export function teamStrength(state: GameState, fid: string): number {
   const roster = state.rosters[fid];
@@ -92,7 +93,8 @@ export function simGame(rng: RNG, state: GameState, game: Game) {
   return { homeScore, awayScore, winner, loser, attendance: r.attendance };
 }
 
-export function applyResult(state: GameState, game: Game) {
+export function applyResult(state: GameState, game: Game, rng?: RNG) {
+  if (rng) recordGameStats(state, game, rng);
   const r = game.result!;
   const w = state.standings[r.winner], l = state.standings[r.loser];
   w.wins++; l.losses++;
