@@ -112,6 +112,12 @@ export interface Player {
   prospect?: boolean;
   bats?: Handedness;
   throws?: Exclude<Handedness, 'S'>;
+  bullpenRole?: 'closer' | 'setup' | 'middle' | 'loogy';
+  morale?: number;                // 0-100; 50 neutral
+  demands?: { wantsRole?: string; wantsPlayingTime?: boolean; wantsExtension?: boolean };
+  optionsUsed?: number;           // 0-3 minor-league option years used
+  onFortyMan?: boolean;           // included on protected 40-man roster
+  fatigue?: { lastAppearance: number; consecutiveDays: number; pitchCount: number };
   draftYear?: number; draftRound?: number; draftPick?: number; draftedBy?: string;
   retired?: boolean; retiredOn?: number;
   awards?: { season: number; type: AwardType; league?: League }[];
@@ -318,6 +324,17 @@ export interface GameState {
   leagueAverages?: Record<number, { OPS: number; ERA: number; AVG: number; OBP: number; SLG: number }>;
   ownerProfiles?: Record<string, OwnerProfile>;
   leagueRules?: LeagueRules;
+  // Per-team depth charts: ordered list of player IDs at each position
+  depthCharts?: Record<string, Record<string, string[]>>;
+  // 40-man rosters per team
+  fortyMan?: Record<string, string[]>;
+  // Pending waiver claims
+  waiverWire?: { playerId: string; fromFid: string; placedDay: number; expiresOnDay: number; claimedBy?: string }[];
+  // Per-game weather (key: gameId)
+  gameWeather?: Record<string, { temp: number; wind: number; conditions: 'clear' | 'cloudy' | 'rain' | 'wind' }>;
+  // QO offers + comp picks
+  qualifyingOffers?: { playerId: string; fromFid: string; declined?: boolean; signedElsewhere?: boolean }[];
+  compPicks?: { fid: string; round: number; year: number; reason: string }[];
 }
 
 export type OwnerStyle = 'cheap' | 'balanced' | 'spendthrift';

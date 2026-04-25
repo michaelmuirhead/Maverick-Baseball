@@ -36,6 +36,12 @@ import { maybeGenerateTradeRumor } from './tradeRumors';
 import { ensureParkFactors } from './parkFactors';
 import { initOwnerProfiles, maybeRollOwnerChanges } from './ownership';
 import { ensureLeagueRules, maybeRollRuleChange } from './leagueRules';
+import { initAllDepthCharts } from './depth';
+import { initMorale, updateWeeklyMorale, rollDemands } from './morale';
+import { decayFatigue } from './fatigue';
+import { ensureGameWeather } from './weather';
+import { processWaivers } from './waivers';
+import { fileArbitrations, resolveArbitrations } from './contracts';
 
 export function initWorld(
   seed: number,
@@ -154,6 +160,8 @@ export function initWorld(
   initial.playMode = playMode;
   initOwnerProfiles(initial, rng);
   ensureLeagueRules(initial);
+  initAllDepthCharts(initial);
+  initMorale(initial);
   initial.ownerObjectives = setSeasonObjectives(initial);
   initial.jobSecurityHistory = [];
 
@@ -196,10 +204,13 @@ export function advanceDay(state: GameState): GameState {
     }
     rollDailyInjuries(newState, rng);
     maybeGenerateTradeRumor(newState, rng);
+    decayFatigue(newState);
+    processWaivers(newState, rng);
 
     if (newState.day > 0 && newState.day % 7 === 0) {
       updateWeeklyStreaks(newState, rng);
       updateWeeklyChemistry(newState, rng);
+      updateWeeklyMorale(newState, rng);
       for (const fid of Object.keys(FRANCHISES)) {
         if (fid === newState.userFranchiseId) continue;
         if (newState.rosters[fid].length < 24) {
@@ -252,6 +263,11 @@ export function advanceDay(state: GameState): GameState {
   if (newState.phase === 'offseason') {
     if (newState.day >= -100 && newState.day <= -30) {
       if (rng.chance(0.25)) newState = simAITradeActivity(newState, rng);
+    }
+    // Arbitration hearings on a fixed offseason day
+    if (newState.day === -75) {
+      const cases = fileArbitrations(newState, rng);
+      resolveArbitrations(newState, cases, rng);
     }
     if (newState.freeAgency?.open) {
       newState = simAIFreeAgentBids(newState, rng);
@@ -406,6 +422,8 @@ export function advanceDay(state: GameState): GameState {
 
     // Tier 9: roll AI franchise sales each offseason
     maybeRollOwnerChanges(newState, rng);
+    // Tier 11: roll player demands
+    rollDemands(newState, rng);
   }
 
   newState.rngState = rng.state;
@@ -437,6 +455,18 @@ ilestone === 'fa_open' && s.freeAgency?.open) return s;
   return s;
 }
 ies' && s.bracket?.series?.ws?.status === 'active') return s;
+    if (milestone === 'champion_crowned' && s.season > startSeason) return s;
+    if (milestone === 'offseason' && s.phase === 'offseason' && s.day > start) return s;
+    if (milestone === 'draft_day' && s.draft && !s.draft.complete) return s;
+    if (milestone === 'fa_open' && s.freeAgency?.open) return s;
+  }
+  return s;
+}
+r_season') return s;
+    if (milestone === 'trade_deadline' && s.day >= 120 && s.phase === 'regular_season') return s;
+    if (milestone === 'end_of_season' && s.day >= 184 && s.season === startSeason) return s;
+    if (milestone === 'playoffs_start' && s.phase === 'postseason' && s.season === startSeason) return s;
+    if (milestone === 'world_series' && s.bracket?.series?.ws?.status === 'active') return s;
     if (milestone === 'champion_crowned' && s.season > startSeason) return s;
     if (milestone === 'offseason' && s.phase === 'offseason' && s.day > start) return s;
     if (milestone === 'draft_day' && s.draft && !s.draft.complete) return s;

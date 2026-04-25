@@ -8,6 +8,7 @@ import { callUpFromMinors, sendDownToMinors } from '../engine/minors';
 import { acceptGMOffer } from '../engine/gmCareer';
 import { buildNewStadium, type NewParkSpec } from '../engine/stadiumReplace';
 import { relocateFranchise, type RelocationSpec } from '../engine/relocation';
+import { setBullpenRoleAction as setRoleEng, setUserDepthAt } from '../engine/depth';
 import { autoCompleteDraft, makePick, autoPickUntilUser } from '../engine/draft';
 import { userPlaceBid, signFreeAgent } from '../engine/freeAgency';
 import { fireCoach, signCoach } from '../engine/coaches';
@@ -58,6 +59,8 @@ interface Store {
   acceptGMOfferAction: (franchiseId: string) => { ok: boolean; reason?: string };
   buildStadiumAction: (spec: NewParkSpec) => { ok: boolean; reason?: string };
   relocateAction: (spec: RelocationSpec) => { ok: boolean; reason?: string };
+  setBullpenRoleAction: (playerId: string, role: 'closer' | 'setup' | 'middle' | 'loogy') => { ok: boolean; reason?: string };
+  setDepthAtAction: (pos: string, orderedIds: string[]) => void;
   hireCoach: (coachId: string, years: number, salary?: number) => void;
   toggleDelegateStaffHiring: () => void;
   fireCoachAction: (coachId: string) => { ok: boolean; buyout: number; reason?: string };
@@ -245,6 +248,19 @@ export const useGame = create<Store>((set, get) => ({
     set({ state: { ...s } }); saveGame(s);
     return r;
   },
+  setBullpenRoleAction: (playerId, role) => {
+    const s = get().state;
+    if (!s) return { ok: false, reason: 'no game' };
+    const r = setRoleEng(s, playerId, role);
+    set({ state: { ...s } }); saveGame(s);
+    return r;
+  },
+  setDepthAtAction: (pos, orderedIds) => {
+    const s = get().state;
+    if (!s) return;
+    setUserDepthAt(s, s.userFranchiseId, pos, orderedIds);
+    set({ state: { ...s } }); saveGame(s);
+  },
   toggleDelegateStaffHiring: () => {
     const s = get().state; if (!s) return;
     s.delegateStaffHiring = !s.delegateStaffHiring;
@@ -287,6 +303,30 @@ urn r;
 }));
 ears, salary);
     set({ state: { ...s } }); saveGame(s);
+  },
+  fireCoachAction: (coachId) => {
+    const s = get().state;
+    if (!s) return { ok: false, buyout: 0, reason: 'no game' };
+    const r = fireCoach(s, coachId);
+    set({ state: { ...s } }); saveGame(s);
+    return r;
+  },
+  waivePlayerAction: (playerId) => {
+    const s = get().state;
+    if (!s) return { ok: false, deadMoney: 0, reason: 'no game' };
+    const r = waivePlayer(s, playerId);
+    set({ state: { ...s } }); saveGame(s);
+    return r;
+  },
+  purchaseUpgradeAction: (type) => {
+    const s = get().state;
+    if (!s) return { ok: false, reason: 'no game' };
+    const r = purchaseUpgrade(s, type);
+    set({ state: { ...s } }); saveGame(s);
+    return r;
+  },
+}));
+.s } }); saveGame(s);
   },
   fireCoachAction: (coachId) => {
     const s = get().state;

@@ -11,11 +11,14 @@ export interface Atbat {
   inning: number;
   batterName: string;
   pitcherName: string;
-  outcome: 'K' | 'BB' | '1B' | '2B' | '3B' | 'HR' | 'GO' | 'FO' | 'HBP';
+  outcome: 'K' | 'BB' | '1B' | '2B' | '3B' | 'HR' | 'GO' | 'FO' | 'HBP' | 'SAC' | 'IBB';
   runs: number;
   outsAfter: number;
   scoreHome: number;
   scoreAway: number;
+  pitches?: string;       // e.g. "B-S-S-X" pitch sequence
+  managerCall?: 'hit_and_run' | 'sac_bunt' | 'IBB' | 'shift';
+  sb?: { runner: string; success: boolean };
 }
 
 export interface LiveGameState {
@@ -68,11 +71,13 @@ function startingPitcher(state: GameState, fid: string): Player | null {
   return sps[0] || null;
 }
 
-function reliever(state: GameState, fid: string, isCloser = false): Player | null {
+function reliever(state: GameState, fid: string, situation: 'closer' | 'setup' | 'middle' | 'loogy' = 'middle'): Player | null {
   const rps = (state.rosters[fid] || [])
     .map((id) => state.players[id])
     .filter((p) => p && (p.pos === 'RP' || p.pos === 'CL') && p.health === 'healthy');
-  if (isCloser) {
+  const matched = rps.find((p) => p.bullpenRole === situation);
+  if (matched) return matched;
+  if (situation === 'closer') {
     const cl = rps.find((p) => p.pos === 'CL');
     if (cl) return cl;
   }
@@ -80,7 +85,9 @@ function reliever(state: GameState, fid: string, isCloser = false): Player | nul
   return rps[0] || null;
 }
 
-function rollAtbat(rng: RNG, batter: Player, pitcher: Player): Atbat['outcome'] {
+interface AtbatResult { outcome: Atbat['outcome']; pitches: string; }
+
+function rollAtbat(rng: RNG, batter: Player, pitcher: Player): AtbatResult {
   const contact = batter.ratings.contact || batter.ratings.overall;
   const power = batter.ratings.power || batter.ratings.overall;
   const eye = batter.ratings.eye || batter.ratings.overall;
@@ -99,26 +106,56 @@ function rollAtbat(rng: RNG, batter: Player, pitcher: Player): Atbat['outcome'] 
   const hbpProb = 0.01;
 
   const r = rng.next();
-  if (r < kProb) return 'K';
-  if (r < kProb + bbProb) return 'BB';
-  if (r < kProb + bbProb + hbpProb) return 'HBP';
+  // Build pitch sequence — series of B/S/F/X
+  const pitches: string[] = [];
+  function addPitch(kind: string) { pitches.push(kind); }
+  let balls = 0, strikes = 0;
+  for (let pitch = 0; pitch < 8 && balls < 4 && strikes < 3; pitch++) {
+    const pr = rng.next();
+    // Strike zone rate
+    const inZone = pr < 0.48;
+    if (inZone) {
+      const swing = rng.chance(0.65);
+      if (!swing) { strikes++; addPitch('S'); continue; }
+      const contact = rng.chance(0.78);
+      if (!contact) { strikes = Math.min(2, strikes + 1); addPitch('S'); continue; }
+      // Foul or in play
+      if (rng.chance(0.40) && strikes < 2) { addPitch('F'); strikes = Math.min(2, strikes + 1); continue; }
+      // Ball in play — break out
+      addPitch('X');
+      break;
+    } else {
+      const chase = rng.chance(0.30);
+      if (chase) {
+        const contact = rng.chance(0.55);
+        if (!contact) { strikes = Math.min(2, strikes + 1); addPitch('S'); continue; }
+        if (rng.chance(0.55) && strikes < 2) { addPitch('F'); strikes = Math.min(2, strikes + 1); continue; }
+        addPitch('X');
+        break;
+      }
+      balls++;
+      addPitch('B');
+    }
+  }
+  const pitchSeq = pitches.join('-');
 
-  // Ball in play
+  if (r < kProb) return { outcome: 'K', pitches: pitchSeq };
+  if (r < kProb + bbProb) return { outcome: 'BB', pitches: pitchSeq };
+  if (r < kProb + bbProb + hbpProb) return { outcome: 'HBP', pitches: pitchSeq };
+
   const babip = Math.max(0.250, Math.min(0.380, 0.295 + skill * 0.18));
   const inPlay = rng.next();
   if (inPlay < babip) {
-    // Hit type roll
     const hrChance = Math.max(0.020, Math.min(0.110, 0.038 + (power - 50) * 0.0012));
     const dblChance = 0.045 + (power - 50) * 0.0006;
     const tplChance = 0.005 + (batter.ratings.speed ? batter.ratings.speed - 50 : 0) * 0.0001;
     const hitRoll = rng.next();
-    if (hitRoll < hrChance) return 'HR';
-    if (hitRoll < hrChance + dblChance) return '2B';
-    if (hitRoll < hrChance + dblChance + tplChance) return '3B';
-    return '1B';
+    if (hitRoll < hrChance) return { outcome: 'HR', pitches: pitchSeq };
+    if (hitRoll < hrChance + dblChance) return { outcome: '2B', pitches: pitchSeq };
+    if (hitRoll < hrChance + dblChance + tplChance) return { outcome: '3B', pitches: pitchSeq };
+    return { outcome: '1B', pitches: pitchSeq };
   }
-  // Out in play
-  return rng.chance(0.55) ? 'GO' : 'FO';
+  return { outcome: rng.chance(0.55) ? 'GO' : 'FO', pitches: pitchSeq };
 }
 
 interface Bases { first: boolean; second: boolean; third: boolean; }
@@ -216,9 +253,9 @@ export function simNextHalfInning(state: GameState, live: LiveGameState, rng: RN
   let pitcher: Player | null;
   if (live.inning <= 6) pitcher = startingPitcher(state, fieldingFid);
   else if (live.inning === 9 || (live.inning === 8 && Math.abs(live.scoreHome - live.scoreAway) <= 3)) {
-    pitcher = reliever(state, fieldingFid, true) || startingPitcher(state, fieldingFid);
+    pitcher = reliever(state, fieldingFid, 'closer') || startingPitcher(state, fieldingFid);
   } else {
-    pitcher = reliever(state, fieldingFid, false) || startingPitcher(state, fieldingFid);
+    pitcher = reliever(state, fieldingFid, 'setup') || startingPitcher(state, fieldingFid);
   }
   if (!pitcher || lineupOrder.length === 0) {
     live.finished = true;
@@ -236,7 +273,8 @@ export function simNextHalfInning(state: GameState, live: LiveGameState, rng: RN
   while (outs < 3 && safety-- > 0) {
     const batter = lineupOrder[batterIdx % lineupOrder.length];
     batterIdx++;
-    const outcome = rollAtbat(rng, batter, pitcher);
+    const ab = rollAtbat(rng, batter, pitcher);
+    const outcome = ab.outcome;
     const r = applyAtbat(outcome, bases);
     bases.first = r.bases.first;
     bases.second = r.bases.second;
@@ -247,6 +285,19 @@ export function simNextHalfInning(state: GameState, live: LiveGameState, rng: RN
     if (live.half === 'top') live.scoreAway += r.runs;
     else live.scoreHome += r.runs;
 
+    // Stolen base attempt before the AB if first/second is occupied with speedy runner
+    let sbInfo: { runner: string; success: boolean } | undefined;
+    if (bases.first && rng.chance(0.06)) {
+      // simple SB chance — speed-rated runners; we don't track specific runner here, use placeholder
+      sbInfo = { runner: 'baserunner', success: rng.chance(0.72) };
+      if (sbInfo.success) {
+        bases.second = true;
+        bases.first = false;
+      } else {
+        bases.first = false;
+        outs += 1;
+      }
+    }
     live.log.push({
       half: live.half,
       inning: live.inning,
@@ -257,6 +308,8 @@ export function simNextHalfInning(state: GameState, live: LiveGameState, rng: RN
       outsAfter: outs,
       scoreHome: live.scoreHome,
       scoreAway: live.scoreAway,
+      pitches: ab.pitches,
+      sb: sbInfo,
     });
     // walk-off check
     if (live.half === 'bot' && live.inning >= 9 && live.scoreHome > live.scoreAway) {

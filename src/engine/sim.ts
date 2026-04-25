@@ -6,6 +6,7 @@ import { managerIntangibleBonus, computeTacticalContribution } from './coaches';
 import { effectiveOverall } from './streaks';
 import { chemistryMultiplier } from './chemistry';
 import { recordGameStats } from './perGameStats';
+import { ensureGameWeather } from './weather';
 
 export function teamStrength(state: GameState, fid: string): number {
   const roster = state.rosters[fid];
@@ -61,6 +62,7 @@ export function teamStrength(state: GameState, fid: string): number {
 }
 
 export function simGame(rng: RNG, state: GameState, game: Game) {
+  ensureGameWeather(state, rng, game);
   const hs = teamStrength(state, game.home);
   const as = teamStrength(state, game.away);
   const diff = hs - as + 2.0;
