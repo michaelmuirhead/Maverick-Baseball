@@ -1,0 +1,423 @@
+import { RNG } from './rng';
+import { FRANCHISES, resetFranchises } from './franchises';
+import { chooseAutoTeamSlot, generateExpansionTeam, registerExpansionFranchise, } from './expansion';
+import { resetExpansionMarkets } from './markets';
+import { genFinance, applyAccruals, finalizeSeason } from './finance';
+import { genRoster, resetPlayerIdCounter } from './players';
+import { generateSchedule } from './schedule';
+import { simGame, applyResult } from './sim';
+import { assignGMPhilosophy, simAITradeActivity } from './trades';
+import { seedBracket, advancePostseasonDay } from './playoffs';
+import { rollDailyInjuries } from './injuries';
+import { processOffseasonEligibility, simAIFreeAgentBids, closeFreeAgencyWindow, simUserGMFreeAgentBids, } from './freeAgency';
+import { startDraft, autoCompleteDraft } from './draft';
+import { initCoaches, rolloverCoaches, developmentBonus, fireCoach, generateCoach, signCoach } from './coaches';
+import { runExpansionDraft } from './expansionDraft';
+import { ageAllPlayers } from './aging';
+import { setSeasonObjectives, evaluateObjectives } from './objectives';
+import { processHallOfFame } from './awards';
+import { updateWeeklyStreaks, resetStreaks } from './streaks';
+import { startIntlSigningWindow, simAIIntlSigningBurst, closeIntlSigningWindow, } from './internationalSignings';
+import { startRule5Draft, autoCompleteRule5, simAIRule5Until } from './rule5';
+import { initChemistry, updateWeeklyChemistry, chemistrySeasonReset } from './chemistry';
+import { initMinorRosters, maintainAIRoster, promoteMinorLeaguers, minorLeagueDevelopment, seedMinorLeagueFillers, } from './minors';
+import { startSpringTraining, executeCuts, ST_OPENS, ST_CLOSES } from './springTraining';
+import { maybeGenerateTradeRumor } from './tradeRumors';
+import { ensureParkFactors } from './parkFactors';
+import { initOwnerProfiles, maybeRollOwnerChanges } from './ownership';
+import { ensureLeagueRules, maybeRollRuleChange } from './leagueRules';
+import { initAllDepthCharts } from './depth';
+import { initMorale, updateWeeklyMorale, rollDemands } from './morale';
+import { decayFatigue } from './fatigue';
+import { processWaivers } from './waivers';
+import { fileArbitrations, resolveArbitrations } from './contracts';
+export function initWorld(seed, userFranchiseId, scenario, expansionConfig, playMode = 'owner') {
+    resetPlayerIdCounter();
+    resetFranchises();
+    resetExpansionMarkets();
+    ensureParkFactors();
+    const rng = new RNG(seed);
+    let userFid = userFranchiseId;
+    let autoTeamFid = null;
+    if (expansionConfig) {
+        userFid = 'exp_user';
+        registerExpansionFranchise(userFid, expansionConfig);
+        const autoSlot = chooseAutoTeamSlot(expansionConfig.lg, expansionConfig.div);
+        const autoConfig = generateExpansionTeam(rng, {
+            excludeCities: [expansionConfig.city],
+            lg: autoSlot.lg,
+            div: autoSlot.div,
+        });
+        autoTeamFid = 'exp_auto';
+        registerExpansionFranchise(autoTeamFid, autoConfig);
+    }
+    const players = {};
+    const finances = {};
+    const rosters = {};
+    const standings = {};
+    const gmPhilosophies = {};
+    for (const fid of Object.keys(FRANCHISES)) {
+        const f = FRANCHISES[fid];
+        finances[fid] = genFinance(rng, f);
+        gmPhilosophies[fid] = assignGMPhilosophy(rng, f);
+        const rosterPlayers = genRoster(rng, fid, { isExpansion: !!f.expansion });
+        rosters[fid] = [];
+        for (const p of rosterPlayers) {
+            players[p.id] = p;
+            rosters[fid].push(p.id);
+        }
+        standings[fid] = { wins: 0, losses: 0, rf: 0, ra: 0, streak: 0, l10: [] };
+    }
+    if (scenario === 'turnaround') {
+        finances[userFid].teamCash = Math.round(finances[userFid].teamCash * 0.4);
+        finances[userFid].debt = Math.max(finances[userFid].debt, 250_000_000);
+    }
+    else if (scenario === 'expansion') {
+        finances[userFid].ownerCash = 700_000_000;
+        finances[userFid].debt = 0;
+    }
+    if (expansionConfig) {
+        for (const fid of [userFid, autoTeamFid]) {
+            const fin = finances[fid];
+            fin.tvValue = Math.round(fin.tvValue * 0.65);
+            fin.tvYearsLeft = 3;
+            fin.debt = 0;
+            fin.ownerCash = fid === userFid ? 800_000_000 : 500_000_000;
+            fin.nameRightsValue = Math.round(fin.nameRightsValue * 1.2);
+            fin.nameRightsYearsLeft = 15;
+        }
+    }
+    const { schedule, byDay } = generateSchedule(rng);
+    const userTeam = FRANCHISES[userFid];
+    const news = [{
+            id: `n_${Date.now()}`,
+            day: 0, season: 2026,
+            headline: "Welcome to the Owner's Box",
+            body: `You've taken the reins of the ${userTeam.city} ${userTeam.name}. The board wishes you the best.`,
+            category: 'team',
+            involves: [userFid],
+        }];
+    if (expansionConfig && autoTeamFid) {
+        const autoTeam = FRANCHISES[autoTeamFid];
+        news.unshift({
+            id: `n_exp_${Date.now()}`,
+            day: 0, season: 2026,
+            headline: 'League expands to 32 clubs - two new franchises unveiled',
+            body: `The ${userTeam.city} ${userTeam.name} and ${autoTeam.city} ${autoTeam.name} join the league as expansion franchises.`,
+            category: 'league',
+        });
+    }
+    const initial = {
+        seed, userFranchiseId: userFid, scenario,
+        day: 0, season: 2026, phase: 'offseason',
+        players, finances, rosters, standings,
+        schedule, byDay, news, gmPhilosophies,
+        expansionAutoTeamFid: autoTeamFid,
+        rngState: rng.state, gmDelegated: false,
+        bracket: null, freeAgents: [], prospects: [],
+        injuryLog: [], developmentHistory: [],
+        draft: null, freeAgency: null,
+    };
+    initCoaches(initial, rng);
+    initChemistry(initial);
+    initMinorRosters(initial);
+    seedMinorLeagueFillers(initial, rng);
+    if (expansionConfig && autoTeamFid) {
+        runExpansionDraft(initial, [userFid, autoTeamFid], rng);
+    }
+    initial.jobSecurity = 50;
+    initial.fired = false;
+    initial.playMode = playMode;
+    initOwnerProfiles(initial, rng);
+    ensureLeagueRules(initial);
+    initAllDepthCharts(initial);
+    initMorale(initial);
+    initial.ownerObjectives = setSeasonObjectives(initial);
+    initial.jobSecurityHistory = [];
+    initial.rngState = rng.state;
+    return initial;
+}
+function newSeasonReset(state, rng) {
+    for (const fid of Object.keys(state.standings)) {
+        state.standings[fid] = { wins: 0, losses: 0, rf: 0, ra: 0, streak: 0, l10: [] };
+    }
+    const { schedule, byDay } = generateSchedule(rng);
+    state.schedule = schedule;
+    state.byDay = byDay;
+}
+export function advanceDay(state) {
+    let newState = { ...state };
+    const rng = new RNG(newState.rngState);
+    newState.day += 1;
+    if (newState.day < 1)
+        newState.phase = 'offseason';
+    else if (newState.day <= 183)
+        newState.phase = 'regular_season';
+    else if (newState.bracket && !newState.bracket.champion)
+        newState.phase = 'postseason';
+    else if (newState.day === 184)
+        newState.phase = 'regular_season';
+    else
+        newState.phase = 'offseason';
+    applyAccruals(newState);
+    if (newState.phase === 'regular_season') {
+        const todays = newState.byDay[newState.day] || [];
+        for (const idx of todays) {
+            const g = newState.schedule[idx];
+            if (!g.played) {
+                g.result = simGame(rng, newState, g);
+                g.played = true;
+                applyResult(newState, g, rng);
+            }
+        }
+        rollDailyInjuries(newState, rng);
+        maybeGenerateTradeRumor(newState, rng);
+        decayFatigue(newState);
+        processWaivers(newState, rng);
+        if (newState.day > 0 && newState.day % 7 === 0) {
+            updateWeeklyStreaks(newState, rng);
+            updateWeeklyChemistry(newState, rng);
+            updateWeeklyMorale(newState, rng);
+            for (const fid of Object.keys(FRANCHISES)) {
+                if (fid === newState.userFranchiseId)
+                    continue;
+                if (newState.rosters[fid].length < 24) {
+                    maintainAIRoster(newState, fid, rng);
+                }
+            }
+            // User auto-replenishment when delegateRoster is on
+            if (newState.delegateRoster && newState.rosters[newState.userFranchiseId].length < 24) {
+                maintainAIRoster(newState, newState.userFranchiseId, rng);
+            }
+        }
+        if (newState.day === 100) {
+            for (const fid of Object.keys(FRANCHISES)) {
+                if (fid === newState.userFranchiseId)
+                    continue;
+                const sd = newState.standings[fid];
+                const games = sd.wins + sd.losses;
+                if (games < 60)
+                    continue;
+                const winPct = sd.wins / games;
+                if (winPct < 0.36 && rng.chance(0.5)) {
+                    const mgrId = newState.staffByFid?.[fid]?.manager;
+                    if (mgrId) {
+                        fireCoach(newState, mgrId);
+                        const interimCandidate = (newState.coachPool || [])
+                            .map((id) => newState.coaches[id])
+                            .filter((c) => c && c.role === 'manager')
+                            .sort((a, b) => b.ratings.overall - a.ratings.overall)[0];
+                        if (interimCandidate)
+                            signCoach(newState, interimCandidate.id, fid, 1);
+                        else {
+                            const interim = generateCoach(rng, 'manager');
+                            newState.coaches[interim.id] = interim;
+                            signCoach(newState, interim.id, fid, 1);
+                        }
+                    }
+                }
+            }
+        }
+        const daysToDeadline = 120 - newState.day;
+        if (daysToDeadline >= 0) {
+            let shouldSim = false;
+            if (daysToDeadline <= 3)
+                shouldSim = rng.chance(0.9);
+            else if (daysToDeadline <= 10)
+                shouldSim = rng.chance(0.5);
+            else if (daysToDeadline <= 30)
+                shouldSim = rng.chance(0.18);
+            else
+                shouldSim = rng.chance(0.05);
+            if (shouldSim)
+                newState = simAITradeActivity(newState, rng);
+        }
+    }
+    if (newState.phase === 'offseason') {
+        if (newState.day >= -100 && newState.day <= -30) {
+            if (rng.chance(0.25))
+                newState = simAITradeActivity(newState, rng);
+        }
+        // Arbitration hearings on a fixed offseason day
+        if (newState.day === -75) {
+            const cases = fileArbitrations(newState, rng);
+            resolveArbitrations(newState, cases, rng);
+        }
+        if (newState.freeAgency?.open) {
+            newState = simAIFreeAgentBids(newState, rng);
+            if (newState.delegateFA) {
+                newState = simUserGMFreeAgentBids(newState, rng);
+            }
+        }
+        if (newState.day === -10 && newState.freeAgency?.open) {
+            closeFreeAgencyWindow(newState);
+        }
+        if (newState.day === -90 && !newState.intlSignings) {
+            startIntlSigningWindow(newState, rng);
+        }
+        if (newState.intlSignings?.open) {
+            simAIIntlSigningBurst(newState, rng);
+        }
+        if (newState.day === -50 && newState.intlSignings?.open) {
+            closeIntlSigningWindow(newState);
+        }
+        // Once-per-offseason rule-change roll
+        maybeRollRuleChange(newState, rng);
+        if (newState.day === -20 && !newState.rule5) {
+            newState.rule5 = startRule5Draft(newState, rng);
+            newState.news.unshift({
+                id: `r5_open_${newState.season}`,
+                day: newState.day, season: newState.season,
+                headline: `${newState.season} Rule 5 draft begins`,
+                body: `${newState.rule5.eligible.length} prospects exposed league-wide.`,
+                category: 'draft',
+            });
+        }
+        if (newState.rule5 && !newState.rule5.complete) {
+            simAIRule5Until(newState, rng);
+            if (newState.gmDelegated)
+                autoCompleteRule5(newState, rng);
+            if (newState.day >= -10 && !newState.rule5.complete)
+                autoCompleteRule5(newState, rng);
+        }
+        if (newState.day === ST_OPENS && (!newState.springTraining || !newState.springTraining.active)) {
+            startSpringTraining(newState);
+        }
+        if (newState.day === ST_CLOSES && newState.springTraining?.active) {
+            executeCuts(newState, rng);
+        }
+        if (newState.day >= ST_OPENS && newState.day <= 5 && (newState.day - ST_OPENS) % 5 === 0) {
+            for (const fid of Object.keys(FRANCHISES)) {
+                if (fid === newState.userFranchiseId)
+                    continue;
+                maintainAIRoster(newState, fid, rng);
+            }
+        }
+        if (newState.day === -45 && !newState.draft) {
+            newState.draft = startDraft(newState, rng, newState.season);
+            newState.news.unshift({
+                id: `draft_open_${newState.season}`,
+                day: newState.day, season: newState.season,
+                headline: `${newState.season} amateur draft begins`,
+                body: 'Front offices across the league prepare for the first round.',
+                category: 'draft',
+            });
+        }
+        if (newState.draft && !newState.draft.complete && newState.gmDelegated) {
+            newState.draft = autoCompleteDraft(newState, newState.draft, rng);
+        }
+    }
+    if (newState.day === 184 && !newState.bracket) {
+        newState.phase = 'postseason';
+        newState.bracket = seedBracket(newState);
+        newState.userMadePlayoffs =
+            newState.bracket.seeds.AL.some((s) => s.id === newState.userFranchiseId) ||
+                newState.bracket.seeds.NL.some((s) => s.id === newState.userFranchiseId);
+        const alSeeds = newState.bracket.seeds.AL;
+        const nlSeeds = newState.bracket.seeds.NL;
+        newState.news = [{
+                id: `seeds_${newState.season}`,
+                day: newState.day, season: newState.season,
+                headline: `Playoff field set - ${alSeeds[0].wins} wins tops AL, ${nlSeeds[0].wins} tops NL`,
+                body: `AL: ${alSeeds.map((s) => `${FRANCHISES[s.id].abbr} (${s.seed})`).join(', ')}. NL: ${nlSeeds.map((s) => `${FRANCHISES[s.id].abbr} (${s.seed})`).join(', ')}.`,
+                category: 'league',
+            }, ...newState.news];
+    }
+    if (newState.phase === 'postseason' && newState.bracket && !newState.bracket.champion) {
+        newState = advancePostseasonDay(newState, rng);
+        rollDailyInjuries(newState, rng);
+    }
+    if (newState.bracket?.champion && !newState.bracket._rolled) {
+        finalizeSeason(newState, rng);
+        newState.season += 1;
+        newState.day = -120;
+        newState.phase = 'offseason';
+        newState.bracket._rolled = true;
+        newState.bracket = null;
+        for (const pid of Object.keys(newState.players)) {
+            const p = newState.players[pid];
+            p.age += 1;
+            if (p.age <= 25 && p.franchiseId) {
+                const bonus = developmentBonus(newState, p.franchiseId, p.isPitcher);
+                if (bonus > 0) {
+                    const role = p.isPitcher ? 'pitching_coach' : 'hitting_coach';
+                    const coachId = newState.staffByFid?.[p.franchiseId]?.[role];
+                    const prePotential = p.potential;
+                    const preOverall = p.ratings.overall;
+                    p.potential = Math.min(99, Math.round(p.potential + bonus));
+                    p.ratings.overall = Math.min(p.potential, p.ratings.overall + Math.round(bonus * 0.4));
+                    const moved = p.potential > prePotential || p.ratings.overall > preOverall;
+                    if (coachId && moved) {
+                        newState.developmentHistory = newState.developmentHistory || [];
+                        newState.developmentHistory.push({
+                            playerId: pid, season: newState.season,
+                            franchiseId: p.franchiseId, coachId, role,
+                            prePotential, postPotential: p.potential,
+                            preOverall, postOverall: p.ratings.overall,
+                            ageAtBump: p.age,
+                        });
+                    }
+                }
+            }
+        }
+        newSeasonReset(newState, rng);
+        newState.freeAgency = null;
+        processOffseasonEligibility(newState);
+        rolloverCoaches(newState, rng);
+        resetStreaks(newState);
+        for (const fid of Object.keys(FRANCHISES)) {
+            if (FRANCHISES[fid].expansion !== undefined) {
+                FRANCHISES[fid].seasonsActive = (FRANCHISES[fid].seasonsActive || 0) + 1;
+            }
+        }
+        ageAllPlayers(newState, rng);
+        evaluateObjectives(newState);
+        processHallOfFame(newState);
+        newState.ownerObjectives = setSeasonObjectives(newState);
+        newState.draft = null;
+        newState.intlSignings = null;
+        newState.rule5 = null;
+        newState.springTraining = undefined;
+        chemistrySeasonReset(newState);
+        minorLeagueDevelopment(newState, rng);
+        promoteMinorLeaguers(newState, rng);
+        initMinorRosters(newState);
+        // Tier 9: roll AI franchise sales each offseason
+        maybeRollOwnerChanges(newState, rng);
+        // Tier 11: roll player demands
+        rollDemands(newState, rng);
+    }
+    newState.rngState = rng.state;
+    return newState;
+}
+export function advanceToMilestone(state, milestone) {
+    let s = state;
+    const start = s.day;
+    const startSeason = s.season;
+    for (let i = 0; i < 365; i++) {
+        s = advanceDay(s);
+        if (milestone === 'next_day' && i >= 0)
+            return s;
+        if (milestone === 'next_week' && ((s.season === startSeason && s.day - start >= 7) || s.season > startSeason))
+            return s;
+        if (milestone === 'opening_day' && s.day === 1 && s.phase === 'regular_season')
+            return s;
+        if (milestone === 'trade_deadline' && s.day >= 120 && s.phase === 'regular_season')
+            return s;
+        if (milestone === 'end_of_season' && s.day >= 184 && s.season === startSeason)
+            return s;
+        if (milestone === 'playoffs_start' && s.phase === 'postseason' && s.season === startSeason)
+            return s;
+        if (milestone === 'world_series' && s.bracket?.series?.ws?.status === 'active')
+            return s;
+        if (milestone === 'champion_crowned' && s.season > startSeason)
+            return s;
+        if (milestone === 'offseason' && s.phase === 'offseason' && s.day > start)
+            return s;
+        if (milestone === 'draft_day' && s.draft && !s.draft.complete)
+            return s;
+        if (milestone === 'fa_open' && s.freeAgency?.open)
+            return s;
+    }
+    return s;
+}
