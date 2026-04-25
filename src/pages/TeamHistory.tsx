@@ -111,38 +111,46 @@ export function TeamHistory() {
       </div>
 
       <div style={S.panel}>
-        <div style={S.panelTitle}>League Championships</div>
-        {champs.length === 0 ? (
+        <div style={S.panelTitle}>League Champions</div>
+        {!state.championHistory || state.championHistory.length === 0 ? (
           <div style={{ color: COLORS.inkDim, fontStyle: 'italic', marginTop: 8 }}>
             No champion crowned yet.
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 8 }}>
-            <thead>
-              <tr>
-                <th style={headStyle}>Season</th>
-                <th style={headStyle}>Champion</th>
-                <th style={headStyle}>Record</th>
-                <th style={{ ...headStyle, textAlign: 'right' }}>Payroll</th>
-              </tr>
-            </thead>
-            <tbody>
-              {champs.map((c, i) => {
-                const cfid = Object.keys(state.teamHistory || {}).find(
-                  (fid) => (state.teamHistory![fid] || []).some((e) => e.season === c.season && e.champion),
-                );
-                const f = cfid ? FRANCHISES[cfid] : null;
-                return (
-                  <tr key={i} style={{ borderBottom: '1px dotted rgba(26,24,20,0.13)' }}>
-                    <td style={{ padding: '6px 8px' }}>{c.season}</td>
-                    <td style={{ padding: '6px 8px' }}>{f ? `${f.city} ${f.name}` : '—'}</td>
-                    <td style={{ padding: '6px 8px' }}>{c.wins}–{c.losses}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(c.payroll)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div style={{ marginTop: 8 }}>
+            {[...state.championHistory].sort((a, b) => b.season - a.season).map((c) => {
+              const f = FRANCHISES[c.championFid];
+              return (
+                <div key={c.season} style={{ borderBottom: '1px solid ' + COLORS.ink, padding: '12px 0', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  <div style={{ minWidth: 80, fontFamily: "'DM Serif Display', serif", fontSize: 28, color: COLORS.green }}>
+                    {c.season}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 18 }}>
+                      {f ? f.city + ' ' + f.name : c.championFid}
+                    </div>
+                    <div style={{ ...S.byline, fontSize: 12 }}>
+                      Regular season: {c.wins}-{c.losses} ({((c.wins / Math.max(1, c.wins + c.losses)) * 100).toFixed(1)}%)
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: 12, fontFamily: "'IBM Plex Serif', serif" }}>
+                      <strong>Path:</strong>
+                      {' '}
+                      {c.defeated.map((d, i) => {
+                        const opp = FRANCHISES[d.opponentFid];
+                        const roundLabel = ({ wild_card: 'WC', division: 'DS', lcs: 'LCS', world_series: 'WS' } as const)[d.round];
+                        return (
+                          <span key={i}>
+                            {i > 0 && <span style={{ color: COLORS.inkDim }}> &rarr; </span>}
+                            <span><strong>{roundLabel}</strong> def. {opp?.abbr || d.opponentFid} {d.gamesWon}-{d.gamesLost}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

@@ -1,8 +1,36 @@
-// Per-team season history recorder.
-// Called at season finalization; also updated when a champion is crowned.
-
-import type { GameState, TeamSeasonRecord } from './types';
+import type { GameState, TeamSeasonRecord, ChampionRecord } from './types';
 import { FRANCHISES } from './franchises';
+
+export function recordChampion(state: GameState) {
+  if (!state.bracket || !state.bracket.champion) return;
+  state.championHistory = state.championHistory || [];
+  if (state.championHistory.some((c) => c.season === state.season)) return;
+
+  const championFid = state.bracket.champion;
+  const standing = state.standings[championFid];
+  const defeated: ChampionRecord['defeated'] = [];
+  for (const series of Object.values(state.bracket.series)) {
+    if (series.winner !== championFid) continue;
+    const opponent = series.higherSeed?.id === championFid ? series.lowerSeed : series.higherSeed;
+    if (!opponent) continue;
+    const championWasHigher = series.higherSeed?.id === championFid;
+    defeated.push({
+      round: series.round,
+      opponentFid: opponent.id,
+      gamesWon: championWasHigher ? series.higherWins : series.lowerWins,
+      gamesLost: championWasHigher ? series.lowerWins : series.higherWins,
+    });
+  }
+  const order = { wild_card: 0, division: 1, lcs: 2, world_series: 3 };
+  defeated.sort((a, b) => order[a.round] - order[b.round]);
+  state.championHistory.push({
+    season: state.season,
+    championFid,
+    wins: standing?.wins ?? 0,
+    losses: standing?.losses ?? 0,
+    defeated,
+  });
+}
 
 export function recordSeasonForAllTeams(state: GameState) {
   state.teamHistory = state.teamHistory || {};
@@ -14,7 +42,6 @@ export function recordSeasonForAllTeams(state: GameState) {
       (s, pid) => s + (state.players[pid]?.contract?.salary || 0), 0,
     );
 
-    // Determine playoff result from this season's bracket
     let playoffResult: TeamSeasonRecord['playoff_result'] | undefined;
     let madePlayoffs = false;
     let champion = false;
@@ -25,7 +52,6 @@ export function recordSeasonForAllTeams(state: GameState) {
         madePlayoffs = true;
         if (bracket.champion === fid) { playoffResult = 'champion'; champion = true; }
         else {
-          // Find the last series they played in
           const series = Object.values(bracket.series)
             .filter((s) => s.higherSeed?.id === fid || s.lowerSeed?.id === fid)
             .sort((a, b) => {
@@ -45,7 +71,6 @@ export function recordSeasonForAllTeams(state: GameState) {
 
     const lastFinance = fin?.history[fin.history.length - 1];
     const history = state.teamHistory[fid] = state.teamHistory[fid] || [];
-    // Avoid double-recording same season
     if (history.some((r) => r.season === state.season)) continue;
     const entry: TeamSeasonRecord = {
       season: state.season,

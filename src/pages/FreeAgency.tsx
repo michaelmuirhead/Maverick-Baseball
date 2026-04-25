@@ -6,7 +6,7 @@ import { fmtShort, toScout } from '../engine/format';
 import { estimateFairAAV } from '../engine/trades';
 
 export function FreeAgency() {
-  const { state, faPlaceBid, advanceTo } = useGame();
+  const { state, faPlaceBid, advanceTo, toggleDelegateFA } = useGame();
   const [selected, setSelected] = useState<string | null>(null);
   const [aav, setAav] = useState<number>(8_000_000);
   const [years, setYears] = useState<number>(3);
@@ -141,6 +141,25 @@ export function FreeAgency() {
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
               Cash: {fmtShort(fin.teamCash)}<br />
               Owner: {fmtShort(fin.ownerCash)}
+            </div>
+          </div>
+
+          <div style={{ ...S.panel, marginTop: 12 }}>
+            <div style={S.panelTitle}>GM Delegation</div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={!!state.delegateFA}
+                onChange={() => toggleDelegateFA()}
+              />
+              <span style={{ fontFamily: "'IBM Plex Serif', serif", fontSize: 13 }}>
+                Let my GM bid on free agents
+              </span>
+            </label>
+            <div style={{ ...S.byline, fontSize: 11, marginTop: 6, color: COLORS.inkDim }}>
+              {state.delegateFA
+                ? "Your GM will identify roster gaps and pursue affordable FAs each day. You can still place your own bids."
+                : "All FA bidding is yours. Toggle on to let your GM auto-bid on roster needs."}
             </div>
           </div>
 

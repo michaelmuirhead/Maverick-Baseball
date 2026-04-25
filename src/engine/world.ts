@@ -16,6 +16,7 @@ import type { ExpansionConfig, GameState, Standing } from './types';
 import { rollDailyInjuries } from './injuries';
 import {
   processOffseasonEligibility, simAIFreeAgentBids, closeFreeAgencyWindow,
+  simUserGMFreeAgentBids,
 } from './freeAgency';
 import { startDraft, autoCompleteDraft } from './draft';
 import { initCoaches, rolloverCoaches, developmentBonus, fireCoach, generateCoach, signCoach } from './coaches';
@@ -108,6 +109,7 @@ export function initWorld(
     headline: "Welcome to the Owner's Box",
     body: `You've taken the reins of the ${userTeam.city} ${userTeam.name}. The board wishes you the best.`,
     category: 'team',
+    involves: [userFid],
   }];
 
   if (expansionConfig && autoTeamFid) {
@@ -254,12 +256,14 @@ export function advanceDay(state: GameState): GameState {
     }
     if (newState.freeAgency?.open) {
       newState = simAIFreeAgentBids(newState, rng);
+      if (newState.delegateFA) {
+        newState = simUserGMFreeAgentBids(newState, rng);
+      }
     }
     if (newState.day === -10 && newState.freeAgency?.open) {
       closeFreeAgencyWindow(newState);
     }
 
-    // International signing window: day -90 open, -50 close
     if (newState.day === -90 && !newState.intlSignings) {
       startIntlSigningWindow(newState, rng);
     }
@@ -270,7 +274,6 @@ export function advanceDay(state: GameState): GameState {
       closeIntlSigningWindow(newState);
     }
 
-    // Rule 5 draft: day -20
     if (newState.day === -20 && !newState.rule5) {
       newState.rule5 = startRule5Draft(newState, rng);
       newState.news.unshift({
@@ -287,7 +290,6 @@ export function advanceDay(state: GameState): GameState {
       if (newState.gmDelegated) {
         autoCompleteRule5(newState, rng);
       }
-      // Force-complete by day -10 if user-pick is blocking the queue
       if (newState.day >= -10 && !newState.rule5.complete) {
         autoCompleteRule5(newState, rng);
       }

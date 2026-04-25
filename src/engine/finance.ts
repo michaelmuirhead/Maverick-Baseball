@@ -3,7 +3,8 @@ import type { Finance, Franchise, GameState, Ledger } from './types';
 import { MARKETS } from './markets';
 import { FRANCHISES } from './franchises';
 import { awardSeason } from './awards';
-import { recordSeasonForAllTeams } from './teamHistory';
+import { recordSeasonForAllTeams, recordChampion } from './teamHistory';
+import { generateSeasonStats } from './stats';
 
 export const CBT_TIER1 = 237_000_000;
 export const CBT_TIER2 = 257_000_000;
@@ -12,6 +13,37 @@ export const REV_SHARE_RATE = 0.05;
 export const OWNER_INJECT_THRESHOLD = -50_000_000;
 export const OWNER_INJECT_MAX = 200_000_000;
 
+export function teamPayroll(state: GameState, fid: string): number {
+  return (state.rosters[fid] || []).reduce(
+    (s, pid) => s + (state.players[pid]?.contract?.salary || 0), 0,
+  );
+}
+
+export function computeLuxuryTax(annualPayroll: number): number {
+  if (annualPayroll <= CBT_TIER1) return 0;
+  let tax = 0;
+  const t1 = Math.min(annualPayroll, CBT_TIER2) - CBT_TIER1;
+  tax += t1 * 0.20;
+  if (annualPayroll > CBT_TIER2) {
+    const t2 = Math.min(annualPayroll, CBT_TIER3) - CBT_TIER2;
+    tax += t2 * 0.32;
+  }
+  if (annualPayroll > CBT_TIER3) {
+    const t3 = annualPayroll - CBT_TIER3;
+    tax += t3 * 0.625;
+  }
+  return Math.round(tax);
+}
+
+export function cbtStatus(payroll: number) {
+  const tax = computeLuxuryTax(payroll);
+  let nextTier: { name: string; threshold: number; distance: number } | null = null;
+  if (payroll < CBT_TIER1) nextTier = { name: 'Tier 1 (20%)', threshold: CBT_TIER1, distance: CBT_TIER1 - payroll };
+  else if (payroll < CBT_TIER2) nextTier = { name: 'Tier 2 (32%)', threshold: CBT_TIER2, distance: CBT_TIER2 - payroll };
+  else if (payroll < CBT_TIER3) nextTier = { name: 'Tier 3 (62.5%)', threshold: CBT_TIER3, distance: CBT_TIER3 - payroll };
+  return { payroll, tax, nextTier };
+}
+
 export function emptyLedger(): Ledger {
   return {
     ticketRev: 0, premiumRev: 0, concRev: 0, parkRev: 0, merchRev: 0,
@@ -19,12 +51,8 @@ export function emptyLedger(): Ledger {
     payroll: 0, staff: 0, stadium: 0, minors: 0, scouting: 0, analytics: 0,
     medical: 0, marketing: 0, travel: 0, debtService: 0,
     attendance: 0, homeGames: 0,
-    postseasonRev: 0,
-    signingBonuses: 0,
-    cbtTax: 0,
-    revShareIn: 0,
-    revShareOut: 0,
-    ownerInjection: 0,
+    postseasonRev: 0, signingBonuses: 0,
+    cbtTax: 0, revShareIn: 0, revShareOut: 0, ownerInjection: 0,
   };
 }
 
@@ -66,15 +94,8 @@ export function genFinance(rng: RNG, franchise: Franchise): Finance {
   };
 }
 
-export function gameDayRev(
-  rng: RNG,
-  franchise: Franchise,
-  finance: Finance,
-  wins: number,
-  losses: number,
-  day: number,
-  rivalry: boolean,
-) {
+export function gameDayRev(rng: RNG, franchise: Franchise, finance: Finance,
+  wins: number, losses: number, day: number, rivalry: boolean) {
   const market = MARKETS[franchise.market];
   const winPct = wins + losses > 0 ? wins / (wins + losses) : 0.5;
   const recordFactor = 0.5 + (winPct - 0.5) * 0.7;
@@ -88,9 +109,7 @@ export function gameDayRev(
   const parkAppeal = 0.9 + franchise.amen * 0.03;
   let demand = recordFactor * loyaltyFactor * seasonArc * parkAppeal;
   if (rivalry) demand *= 1.15;
-  if (franchise.expansion && (franchise.seasonsActive ?? 0) < 3) {
-    demand *= 0.85;
-  }
+  if (franchise.expansion && (franchise.seasonsActive ?? 0) < 3) demand *= 0.85;
   demand = Math.max(0.2, Math.min(1.0, demand + rng.normal(0, 0.05)));
 
   const attendance = Math.round(franchise.cap * demand);
@@ -124,8 +143,7 @@ export function applyAccruals(state: GameState) {
     if (fin.debt > 0) fin.ledger.debtService += Math.round(fin.debt * 0.055 / 365);
     if (state.day >= 1 && state.day <= 183) {
       const annualPay = state.rosters[fid].reduce(
-        (s, pid) => s + (state.players[pid]?.contract?.salary || 0),
-        0,
+        (s, pid) => s + (state.players[pid]?.contract?.salary || 0), 0,
       );
       fin.ledger.payroll += Math.round(annualPay / 183);
     }
@@ -133,34 +151,14 @@ export function applyAccruals(state: GameState) {
   }
 }
 
-export function computeLuxuryTax(annualPayroll: number): number {
-  if (annualPayroll <= CBT_TIER1) return 0;
-  let tax = 0;
-  const t1 = Math.min(annualPayroll, CBT_TIER2) - CBT_TIER1;
-  tax += t1 * 0.20;
-  if (annualPayroll > CBT_TIER2) {
-    const t2 = Math.min(annualPayroll, CBT_TIER3) - CBT_TIER2;
-    tax += t2 * 0.32;
-  }
-  if (annualPayroll > CBT_TIER3) {
-    const t3 = annualPayroll - CBT_TIER3;
-    tax += t3 * 0.625;
-  }
-  return Math.round(tax);
-}
-
 export function finalizeSeason(state: GameState, rng: RNG) {
   awardSeason(state);
+  recordChampion(state);
   recordSeasonForAllTeams(state);
+  generateSeasonStats(state, rng);
   const fids = Object.keys(state.finances);
 
-  type SeasonRecord = {
-    fid: string;
-    revenue: number;
-    expenses: number;
-    payroll: number;
-    cbtTax: number;
-  };
+  type SeasonRecord = { fid: string; revenue: number; expenses: number; payroll: number; cbtTax: number; };
   const provisional: SeasonRecord[] = [];
   for (const fid of fids) {
     const fin = state.finances[fid];
@@ -194,9 +192,7 @@ export function finalizeSeason(state: GameState, rng: RNG) {
     r.expenses += out;
     pool += out;
   }
-  for (const r of provisional) {
-    pool += r.cbtTax;
-  }
+  for (const r of provisional) pool += r.cbtTax;
   if (recipients.length > 0) {
     const share = Math.round(pool / recipients.length);
     for (const r of recipients) {
@@ -219,13 +215,11 @@ export function finalizeSeason(state: GameState, rng: RNG) {
         fin.ownerCash -= injected;
         fin.debt += injected;
         fin.ledger.ownerInjection = injected;
-
         const f = FRANCHISES[r.fid];
         if (f) {
           state.news.unshift({
             id: `inject_${r.fid}_${state.season}`,
-            day: state.day,
-            season: state.season,
+            day: state.day, season: state.season,
             headline: `${f.city} ownership injects $${(injected / 1_000_000).toFixed(0)}M to stabilize ledger`,
             body: `The capital infusion adds to long-term debt but keeps the club solvent through the offseason.`,
             category: 'team',

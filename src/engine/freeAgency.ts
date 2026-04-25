@@ -1,5 +1,5 @@
 import type { RNG } from './rng';
-import type { GameState, Player, FAListing, FABid, GMPhilosophy } from './types';
+import type { GameState, Player, FAListing, FABid, GMPhilosophy, Position } from './types';
 import { FRANCHISES } from './franchises';
 import { estimateFairAAV, effectivePhilosophy } from './trades';
 import { awardFreeAgentMultiplier } from './awards';
@@ -275,4 +275,117 @@ export function closeFreeAgencyWindow(state: GameState) {
     body: 'Unsigned veterans now available on minor-league or one-year deals.',
     category: 'fa',
   });
+}
+
+/**
+ * GM auto-bid: when the user delegates FA to their GM, the AI evaluates the
+ * unsigned free-agent pool on behalf of the user team using the same
+ * payroll-discipline rules other AI clubs follow. Called once per offseason
+ * day while delegateFA is true.
+ *
+ * Strategy:
+ *  • Identify the team's biggest weak spots (position-by-position deficits
+ *    relative to league average rating).
+ *  • For each weak spot, find the best affordable FA at that position.
+ *  • Place a market-rate bid; if the player accepts, we sign them.
+ */
+export function simUserGMFreeAgentBids(state: GameState, rng: RNG): GameState {
+  const fa = state.freeAgency;
+  if (!fa || !fa.open || !state.delegateFA) return state;
+  const fid = state.userFranchiseId;
+  const fin = state.finances[fid];
+  if (!fin) return state;
+
+  // Compute current roster by position
+  const roster = (state.rosters[fid] || [])
+    .map((id) => state.players[id])
+    .filter((p) => p && !p.retired);
+
+  const positionsToFill: Position[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH', 'SP', 'RP'];
+
+  // Score each position on roster - lower means weaker (priority to fill)
+  const posScores: Record<string, number> = {};
+  for (const pos of positionsToFill) {
+    const atPos = roster.filter((p) => p.pos === pos);
+    if (atPos.length === 0) {
+      posScores[pos] = 0;        // empty = highest priority
+    } else {
+      const best = Math.max(...atPos.map((p) => p.ratings.overall));
+      posScores[pos] = best;
+    }
+  }
+  // Pick top 3 weakest positions
+  const weakest = positionsToFill
+    .map((pos) => ({ pos, score: posScores[pos] }))
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 3)
+    .map((x) => x.pos);
+
+  // Payroll discipline gate
+  const currentPayroll = state.rosters[fid].reduce(
+    (s, pid) => s + (state.players[pid]?.contract?.salary || 0), 0,
+  );
+  const revenueProxy = fin.tvValue + fin.sponsors + fin.nameRightsValue + 75_000_000;
+  // Don't take on FA if payroll is already above 80% of revenue proxy
+  if (currentPayroll > revenueProxy * 0.8) return state;
+
+  // For each weak spot, look for the best fit FA
+  for (const pos of weakest) {
+    const candidates = fa.listings
+      .filter((l) => !l.signedBy)
+      .map((l) => ({ l, p: state.players[l.playerId] }))
+      .filter((x) => x.p && x.p.pos === pos)
+      .sort((a, b) => b.p.ratings.overall - a.p.ratings.overall);
+
+    if (candidates.length === 0) continue;
+
+    // Each day there's a 30% chance the GM acts on a top-3 candidate
+    if (!rng.chance(0.3)) continue;
+
+    const target = candidates[rng.int(0, Math.min(2, candidates.length - 1))];
+    const player = target.p;
+    const listing = target.l;
+
+    // Don't double-bid
+    if (listing.bids.find((b) => b.franchiseId === fid)) continue;
+
+    // Compute fair AAV
+    const fairAAV = estimateFairAAV(player.ratings.overall, player.age);
+    let aav = Math.round(fairAAV * rng.float(0.95, 1.08));
+
+    // Hard cap: 12% of cash + 8% of owner
+    const aavCap = Math.round(fin.teamCash * 0.12 + fin.ownerCash * 0.08);
+    if (aav > aavCap) aav = aavCap;
+    if (aav < 760_000) continue;
+    if (fin.teamCash < aav) continue;
+
+    const years = player.age >= 35 ? 1
+      : player.age >= 32 ? rng.int(1, 2)
+      : player.age >= 29 ? rng.int(2, 4)
+      : rng.int(3, 5);
+
+    const bid: FABid = {
+      franchiseId: fid,
+      aav,
+      years,
+      total: aav * years,
+      philosophy: (state.gmPhilosophies?.[fid] || 'balanced') as GMPhilosophy,
+      dayPlaced: state.day,
+    };
+    listing.bids.push(bid);
+
+    // Player decides — accept if AAV >= 85% of asking
+    if (aav >= listing.asking * 0.85 && rng.chance(0.4)) {
+      signFreeAgent(state, listing, bid);
+      state.news.unshift({
+        id: `gm_sign_${listing.playerId}_${state.season}`,
+        day: state.day,
+        season: state.season,
+        headline: `Your GM signs ${player.firstName} ${player.lastName}`,
+        body: `${years}-year, $${(aav * years / 1_000_000).toFixed(1)}M deal — auto-executed by delegated GM.`,
+        category: 'fa',
+      });
+    }
+  }
+  return state;
 }

@@ -59,6 +59,7 @@ interface Store {
   faAcceptBid: (playerId: string, fromFid: string) => void;
 
   toggleGmDelegated: () => void;
+  toggleDelegateFA: () => void;
 
   hireCoach: (coachId: string, years: number, salary?: number) => void;
   toggleDelegateStaffHiring: () => void;
@@ -220,6 +221,14 @@ export const useGame = create<Store>((set, get) => ({
     const s = get().state;
     if (!s) return;
     s.gmDelegated = !s.gmDelegated;
+    set({ state: { ...s } });
+    saveGame(s);
+  },
+
+  toggleDelegateFA: () => {
+    const s = get().state;
+    if (!s) return;
+    s.delegateFA = !s.delegateFA;
     set({ state: { ...s } });
     saveGame(s);
   },
