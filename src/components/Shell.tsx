@@ -3,38 +3,26 @@ import { S, COLORS } from '../styles/tokens';
 import { useGame, type Page } from '../state/store';
 import { FRANCHISES } from '../engine/franchises';
 import { fmtShort, phaseLabel, seasonDate } from '../engine/format';
-
-const PAGES: { id: Page; label: string }[] = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'roster', label: 'Roster' },
-  { id: 'minors', label: 'Minors' },
-  { id: 'staff', label: 'Staff' },
-  { id: 'trades', label: 'Trades' },
-  { id: 'free_agency', label: 'Free Agency' },
-  { id: 'draft', label: 'Draft' },
-  { id: 'international', label: 'Intl' },
-  { id: 'rule5', label: 'Rule 5' },
-  { id: 'prospects', label: 'Prospects' },
-  { id: 'injured_list', label: 'Injured List' },
-  { id: 'standings', label: 'Standings' },
-  { id: 'schedule', label: 'Schedule' },
-  { id: 'live_game', label: 'Live' },
-  { id: 'playoffs', label: 'Playoffs' },
-  { id: 'finances', label: 'Finances' },
-  { id: 'stadium', label: 'Stadium' },
-  { id: 'news', label: 'News' },
-  { id: 'awards', label: 'Awards' },
-  { id: 'leaderboards', label: 'Leaders' },
-  { id: 'history', label: 'History' },
-  { id: 'settings', label: 'Settings' },
-];
+import { NAV, findGroupForPage, firstSubOfGroup } from './navConfig';
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { state, page, setPage, advanceOne, advanceTo, clearSavedGame, setView } = useGame();
+  const { state, page, setPage, lastSubByGroup, advanceOne, advanceTo, clearSavedGame, setView } = useGame();
   if (!state) return <>{children}</>;
   const userTeam = FRANCHISES[state.userFranchiseId];
   const standing = state.standings[state.userFranchiseId];
   const fin = state.finances[state.userFranchiseId];
+
+  const activeGroup = findGroupForPage(page);
+  const activeGroupDef = NAV.find(g => g.id === activeGroup) || NAV[0];
+
+  const onTopClick = (groupId: string) => {
+    const remembered = lastSubByGroup[groupId];
+    if (remembered) {
+      setPage(remembered);
+    } else {
+      setPage(firstSubOfGroup(groupId));
+    }
+  };
 
   return (
     <div style={S.shell}>
@@ -53,18 +41,33 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <nav style={S.nav}>
         <div style={S.navInner}>
-          {PAGES.map((p) => (
+          {NAV.map((g) => (
             <button
-              key={p.id}
+              key={g.id}
               type="button"
-              style={S.navItem(p.id === page)}
-              onClick={() => setPage(p.id)}
+              style={S.navItem(g.id === activeGroup)}
+              onClick={() => onTopClick(g.id)}
             >
-              {p.label}
+              {g.label}
             </button>
           ))}
         </div>
       </nav>
+
+      <div style={subBarStyle}>
+        <div style={subBarInnerStyle}>
+          {activeGroupDef.subs.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              style={subPillStyle(s.id === page)}
+              onClick={() => setPage(s.id as Page)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <main style={S.page}>{children}</main>
 
@@ -99,11 +102,36 @@ export function Shell({ children }: { children: ReactNode }) {
                 setView('splash');
               }
             }}
-          >
-            Quit
-          </button>
+          >Quit</button>
         </div>
       </footer>
     </div>
   );
 }
+
+const subBarStyle: React.CSSProperties = {
+  background: '#f5efe0',
+  borderBottom: `1px solid ${COLORS.ink}`,
+  borderTop: `1px solid ${COLORS.ink}22`,
+};
+
+const subBarInnerStyle: React.CSSProperties = {
+  maxWidth: 1280,
+  margin: '0 auto',
+    display: 'flex',
+  gap: 4,
+  padding: '6px 16px',
+  flexWrap: 'wrap',
+};
+
+const subPillStyle = (active: boolean): React.CSSProperties => ({
+  background: active ? '#ebe2cb' : 'transparent',
+  border: 0,
+  padding: '4px 10px',
+  fontSize: 12,
+  fontWeight: active ? 600 : 400,
+  color: active ? COLORS.ink : '#555',
+  cursor: 'pointer',
+  borderRadius: 3,
+  fontFamily: 'inherit',
+});
